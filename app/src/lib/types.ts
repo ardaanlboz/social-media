@@ -31,6 +31,7 @@ export interface Video {
   dateAdded: string;
   configName: string;
   starred: boolean;
+  checklistResult: string;
 }
 
 export interface PipelineParams {
@@ -58,4 +59,25 @@ export interface PipelineProgress {
   videosTotal: number;
   errors: string[];
   log: string[];
+}
+
+export interface ChecklistItemVerdict {
+  itemId: string;
+  pass: boolean;
+  feedback: string;
+}
+
+export interface ConceptVerdict {
+  conceptLabel: string;
+  items: ChecklistItemVerdict[];
+}
+
+export interface ChecklistVerdict {
+  concepts: ConceptVerdict[];
+  allPass: boolean;
+}
+
+export interface ChecklistResult {
+  verdict: ChecklistVerdict;
+  revisionRounds: number;
 }

@@ -60,7 +60,7 @@ export function writeCreators(creators: Creator[]) {
 }
 
 // Videos
-const VIDEO_COLUMNS = ["id", "link", "thumbnail", "creator", "views", "likes", "comments", "analysis", "newConcepts", "datePosted", "dateAdded", "configName", "starred"];
+const VIDEO_COLUMNS = ["id", "link", "thumbnail", "creator", "views", "likes", "comments", "analysis", "newConcepts", "datePosted", "dateAdded", "configName", "starred", "checklistResult"];
 
 export function readVideos(): Video[] {
   const raw = readCsv<Record<string, string>>("videos.csv");
@@ -78,6 +78,7 @@ export function readVideos(): Video[] {
     dateAdded: r.dateAdded || r["Date Added"] || r["dateAdded"] || "",
     configName: r.configName || r["Config Name"] || r["configName"] || "",
     starred: r.starred === "true",
+    checklistResult: r.checklistResult || "",
   }));
 }
 

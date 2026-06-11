@@ -202,6 +202,7 @@ export async function runPipeline(
           dateAdded: new Date().toISOString().slice(0, 10),
           configName: params.configName,
           starred: false,
+          checklistResult: "",
         };
 
         newVideos.push(videoRecord);
