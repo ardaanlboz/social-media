@@ -13,8 +13,9 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Pencil, Trash2, Settings2, Sparkles, Search, Users, Film } from "lucide-react";
+import { Plus, Pencil, Trash2, Settings2, Sparkles, Search, Users, Film, ClipboardCheck } from "lucide-react";
 import type { Config, Creator, Video } from "@/lib/types";
+import { parseChecklistItems } from "@/lib/checklist-parse";
 
 const emptyConfig = {
   configName: "",
@@ -30,6 +31,8 @@ export default function ConfigsPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Config | null>(null);
   const [form, setForm] = useState(emptyConfig);
+  const [checklist, setChecklist] = useState("");
+  const [checklistSaving, setChecklistSaving] = useState(false);
 
   const loadConfigs = () => {
     fetch("/api/configs").then((r) => r.json()).then(setConfigs);
@@ -39,6 +42,7 @@ export default function ConfigsPage() {
     loadConfigs();
     fetch("/api/creators").then((r) => r.json()).then(setCreators);
     fetch("/api/videos").then((r) => r.json()).then(setVideos);
+    fetch("/api/checklist").then((r) => r.json()).then((d) => setChecklist(d.content || ""));
   }, []);
 
   const openNew = () => {
@@ -81,6 +85,18 @@ export default function ConfigsPage() {
     await fetch(`/api/configs?id=${id}`, { method: "DELETE" });
     loadConfigs();
   };
+
+  const saveChecklist = async () => {
+    setChecklistSaving(true);
+    await fetch("/api/checklist", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content: checklist }),
+    });
+    setChecklistSaving(false);
+  };
+
+  const checklistItemCount = parseChecklistItems(checklist).length;
 
   return (
     <div className="space-y-8">
@@ -156,6 +172,35 @@ export default function ConfigsPage() {
             </div>
           </DialogContent>
         </Dialog>
+      </div>
+
+      {/* Master Scripting Checklist */}
+      <div className="glass rounded-2xl p-5">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500/20 to-teal-500/20 border border-emerald-500/20">
+            <ClipboardCheck className="h-4 w-4 text-emerald-400" />
+          </div>
+          <div>
+            <h3 className="text-sm font-semibold">Master Scripting Checklist</h3>
+            <p className="text-xs text-muted-foreground">
+              Applies to every config and every generation — {checklistItemCount} items parsed
+            </p>
+          </div>
+        </div>
+        <Textarea
+          value={checklist}
+          onChange={(e) => setChecklist(e.target.value)}
+          rows={12}
+          placeholder="- [item-id] Item name: criterion..."
+          className="mt-4 rounded-xl glass border-white/[0.08] font-mono text-xs leading-relaxed"
+        />
+        <Button
+          onClick={saveChecklist}
+          disabled={checklistSaving}
+          className="mt-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 border-0"
+        >
+          {checklistSaving ? "Saving..." : "Save Checklist"}
+        </Button>
       </div>
 
       {/* Config Cards */}
