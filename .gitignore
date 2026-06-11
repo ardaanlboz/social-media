@@ -2,3 +2,13 @@ node_modules/
 .env
 .DS_Store
 outputs/
+
+# User data — never tracked, so branch switches/checkouts can't revert it
+data/configs.csv
+data/creators.csv
+data/videos.csv
+data/master-checklist.md
+data/nexus-framework.md
+data/runs.csv
+data/creator-profile.json
+data/creator-videos.csv
