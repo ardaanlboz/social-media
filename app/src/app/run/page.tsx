@@ -14,14 +14,22 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Play, Loader2, CheckCircle2, XCircle, Terminal, Zap, ChevronDown, ArrowRight, Film, AlertTriangle } from "lucide-react";
+import { Play, Loader2, CheckCircle2, XCircle, Terminal, Zap, ChevronDown, ArrowRight, Film, AlertTriangle, History } from "lucide-react";
 import { usePipeline } from "@/context/pipeline-context";
-import type { Config } from "@/lib/types";
+import type { Config, PipelineRun } from "@/lib/types";
 
 function formatViews(n: number): string {
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1).replace(/\.0$/, "") + "M";
   if (n >= 1_000) return (n / 1_000).toFixed(1).replace(/\.0$/, "") + "K";
   return n.toString();
+}
+
+function formatDuration(startedAt: string, finishedAt: string): string {
+  const ms = new Date(finishedAt).getTime() - new Date(startedAt).getTime();
+  if (!isFinite(ms) || ms < 0) return "—";
+  const s = Math.round(ms / 1000);
+  if (s < 60) return `${s}s`;
+  return `${Math.floor(s / 60)}m ${s % 60}s`;
 }
 
 export default function RunPage() {
@@ -31,6 +39,7 @@ export default function RunPage() {
   const [topK, setTopK] = useState(3);
   const [nDays, setNDays] = useState(30);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [runs, setRuns] = useState<PipelineRun[]>([]);
   const logEndRef = useRef<HTMLDivElement>(null);
 
   const { running, progress, runPipeline } = usePipeline();
@@ -38,6 +47,16 @@ export default function RunPage() {
   useEffect(() => {
     fetch("/api/configs").then((r) => r.json()).then(setConfigs);
   }, []);
+
+  useEffect(() => {
+    fetch("/api/runs").then((r) => r.json()).then(setRuns).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (progress?.status === "completed" || progress?.status === "error") {
+      fetch("/api/runs").then((r) => r.json()).then(setRuns).catch(() => {});
+    }
+  }, [progress?.status]);
 
   useEffect(() => {
     logEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -275,6 +294,51 @@ export default function RunPage() {
               </ScrollArea>
             </div>
           </details>
+        </div>
+      )}
+
+      {/* Recent runs */}
+      {runs.length > 0 && (
+        <div className="glass rounded-2xl p-6 space-y-4">
+          <div className="flex items-center gap-2">
+            <History className="h-4 w-4 text-purple-400" />
+            <h2 className="text-sm font-semibold">Recent Runs</h2>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="text-left text-muted-foreground border-b border-white/[0.06]">
+                  <th className="pb-2 pr-4 font-medium">Config</th>
+                  <th className="pb-2 pr-4 font-medium">Started</th>
+                  <th className="pb-2 pr-4 font-medium">Duration</th>
+                  <th className="pb-2 pr-4 font-medium">Params</th>
+                  <th className="pb-2 pr-4 font-medium">Videos</th>
+                  <th className="pb-2 font-medium">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {runs.slice(0, 10).map((run) => (
+                  <tr key={run.id} className="border-b border-white/[0.04] last:border-0">
+                    <td className="py-2.5 pr-4 font-medium">{run.configName}</td>
+                    <td className="py-2.5 pr-4 text-muted-foreground">{run.startedAt ? new Date(run.startedAt).toLocaleString() : "—"}</td>
+                    <td className="py-2.5 pr-4 text-muted-foreground">{formatDuration(run.startedAt, run.finishedAt)}</td>
+                    <td className="py-2.5 pr-4 text-muted-foreground">max {run.maxVideos} · top {run.topK} · {run.nDays}d</td>
+                    <td className="py-2.5 pr-4">
+                      {run.videosAdded}
+                      {run.errorCount > 0 && <span className="text-red-400"> · {run.errorCount} err</span>}
+                    </td>
+                    <td className="py-2.5">
+                      {run.status === "completed" ? (
+                        <span className="inline-flex items-center gap-1 text-emerald-400"><CheckCircle2 className="h-3 w-3" /> Completed</span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-red-400"><XCircle className="h-3 w-3" /> Failed</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </div>
