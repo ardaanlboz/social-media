@@ -81,3 +81,39 @@ export interface ChecklistResult {
   verdict: ChecklistVerdict;
   revisionRounds: number;
 }
+
+export interface CreatorVideo {
+  id: string;
+  link: string;
+  videoUrl: string;
+  thumbnail: string;
+  caption: string;
+  views: number;
+  likes: number;
+  comments: number;
+  datePosted: string;
+  topic: string;
+  analysis: string;
+  dateAdded: string;
+}
+
+export interface CreatorProfile {
+  username: string;
+  profilePicUrl: string;
+  followers: number;
+  lastRefreshedAt: string;
+  accountInsights: string;
+}
+
+export interface PipelineRun {
+  id: string;
+  configName: string;
+  maxVideos: number;
+  topK: number;
+  nDays: number;
+  startedAt: string;
+  finishedAt: string;
+  status: "completed" | "failed";
+  videosAdded: number;
+  errorCount: number;
+}

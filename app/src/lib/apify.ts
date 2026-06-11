@@ -7,6 +7,7 @@ export interface ApifyReel {
   ownerUsername: string;
   images: string[];
   timestamp: string;
+  caption?: string;
 }
 
 interface ApifyProfileResult {
@@ -131,4 +132,33 @@ export async function scrapeCreatorStats(username: string): Promise<CreatorStats
     : 0;
 
   return { profilePicUrl, followers, reelsCount30d, avgViews30d };
+}
+
+// CDN video URLs expire — re-scrape a single post to get a fresh one
+export async function scrapePostVideoUrl(postUrl: string): Promise<string> {
+  const token = getToken();
+
+  const response = await fetch(
+    `https://api.apify.com/v2/acts/apify~instagram-scraper/run-sync-get-dataset-items?token=${token}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        directUrls: [postUrl],
+        resultsType: "posts",
+        resultsLimit: 1,
+        addParentData: false,
+      }),
+    }
+  );
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Apify post error ${response.status}: ${text}`);
+  }
+
+  const items = (await response.json()) as ApifyReel[];
+  const videoUrl = items[0]?.videoUrl;
+  if (!videoUrl) throw new Error(`No videoUrl found for post ${postUrl}`);
+  return videoUrl;
 }
