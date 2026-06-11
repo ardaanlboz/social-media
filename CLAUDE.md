@@ -64,6 +64,13 @@ A global checklist (`data/master-checklist.md`, editable on the Configs page) th
 - Verdict saved per video as JSON in the `checklistResult` column, rendered as a scorecard in the Videos page
 - Item line format: `- [item-id] Label: criterion`; an empty/missing file disables the feature entirely
 
+### Nexus Framework
+
+A global content-creation framework (`data/nexus-framework.md`, editable on the Configs page) injected as guidance — not graded:
+- Appended to the Gemini analysis prompt as descriptive vocabulary/context
+- Injected into the Claude generation and revision prompts as mandatory writing rules (You-form, conviction, linear storytelling, power words, simplicity, visual-in-mind)
+- The checklist verifier does NOT grade framework adherence; an empty/missing file disables the layer
+
 ---
 
 ## Workspace Structure
@@ -80,7 +87,7 @@ A global checklist (`data/master-checklist.md`, editable on the Configs page) th
 │   │   │   ├── run/page.tsx               # Pipeline runner with live progress
 │   │   │   ├── configs/page.tsx           # Config management
 │   │   │   ├── creators/page.tsx          # Creator management
-│   │   │   └── api/                       # API routes (configs, creators, videos, pipeline, checklist)
+│   │   │   └── api/                       # API routes (configs, creators, videos, pipeline, checklist, framework)
 │   │   ├── lib/                           # Core logic
 │   │   │   ├── pipeline.ts               # Pipeline orchestration
 │   │   │   ├── apify.ts                  # Apify scraper client
@@ -88,6 +95,7 @@ A global checklist (`data/master-checklist.md`, editable on the Configs page) th
 │   │   │   ├── claude.ts                 # Claude concept generation client
 │   │   │   ├── checklist.ts              # Master checklist file read/write
 │   │   │   ├── checklist-parse.ts        # Client-safe checklist item parser
+│   │   │   ├── framework.ts              # Nexus framework file read/write
 │   │   │   ├── verifier.ts               # Checklist verify-and-revise (Claude)
 │   │   │   ├── csv.ts                    # CSV read/write utilities
 │   │   │   └── types.ts                  # TypeScript interfaces
@@ -97,6 +105,7 @@ A global checklist (`data/master-checklist.md`, editable on the Configs page) th
 │   ├── configs.csv                        # Pipeline configurations
 │   ├── creators.csv                       # Instagram creator accounts
 │   ├── master-checklist.md                # Global scripting checklist
+│   ├── nexus-framework.md                 # Global content-creation framework
 │   └── videos.csv                         # Analyzed video results
 ├── context/                               # Background context for Claude
 ├── plans/                                 # Implementation plans
