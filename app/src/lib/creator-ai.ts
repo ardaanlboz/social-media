@@ -42,7 +42,8 @@ export async function classifyTopics(
 
   const message = await client.messages.create({
     model: MODEL,
-    max_tokens: 2048,
+    // ~64 output tokens per assignment (UUID + topic + JSON syntax); 2k was truncating large batches
+    max_tokens: Math.min(8192, 256 + videos.length * 64),
     messages: [
       {
         role: "user",

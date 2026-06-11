@@ -65,6 +65,9 @@ export async function POST() {
               untopiced.map((v) => ({ id: v.id, caption: v.caption.slice(0, 500) })),
               existingTopics
             );
+            if (assignments.size === 0) {
+              send({ type: "error", error: "Topic classification returned no assignments — topics will retry on next refresh" });
+            }
             for (const v of videos) {
               const topic = assignments.get(v.id);
               if (topic) v.topic = topic;
