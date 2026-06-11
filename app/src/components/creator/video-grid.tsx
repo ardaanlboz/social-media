@@ -11,15 +11,25 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ArrowUpDown, ExternalLink, Film, Heart, Loader2, MessageCircle, Play, Search, Sparkles } from "lucide-react";
+import { ArrowUpDown, ExternalLink, Film, Flame, Heart, Loader2, MessageCircle, Play, Search, Sparkles } from "lucide-react";
 import { MarkdownContent } from "@/components/markdown-content";
-import { engagementRate } from "@/lib/creator-metrics";
-import type { CreatorVideo } from "@/lib/types";
+import { ViralRescueModal } from "@/components/creator/viral-rescue-modal";
+import { computeOverview, engagementRate } from "@/lib/creator-metrics";
+import type { CreatorVideo, ViralRescue } from "@/lib/types";
 
 function formatViews(n: number): string {
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1).replace(/\.0$/, "") + "M";
   if (n >= 1_000) return (n / 1_000).toFixed(1).replace(/\.0$/, "") + "K";
   return n.toString();
+}
+
+function parseRescue(raw: string): ViralRescue | null {
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as ViralRescue;
+  } catch {
+    return null;
+  }
 }
 
 type SortOption = "views" | "date" | "engagement";
@@ -36,8 +46,13 @@ export function CreatorVideoGrid({
   const [analyzingId, setAnalyzingId] = useState<string | null>(null);
   const [analyzeError, setAnalyzeError] = useState("");
   const [modalVideo, setModalVideo] = useState<CreatorVideo | null>(null);
+  const [rescuingId, setRescuingId] = useState<string | null>(null);
+  const [rescueError, setRescueError] = useState("");
+  const [rescueModal, setRescueModal] = useState<{ video: CreatorVideo; rescue: ViralRescue } | null>(null);
+  const [regenerating, setRegenerating] = useState(false);
 
   const topics = [...new Set(videos.map((v) => v.topic).filter(Boolean))].sort();
+  const accountAvgViews = computeOverview(videos).avgViews;
 
   const filtered = videos
     .filter((v) => filterTopic === "all" || v.topic === filterTopic)
@@ -65,6 +80,54 @@ export function CreatorVideoGrid({
       setModalVideo({ ...video, analysis: data.analysis });
     } finally {
       setAnalyzingId(null);
+    }
+  };
+
+  const runRescue = async (video: CreatorVideo): Promise<ViralRescue | null> => {
+    const res = await fetch("/api/creator/rescue", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ videoId: video.id }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      setRescueError(data.error || "Rescue failed");
+      return null;
+    }
+    return data.rescue as ViralRescue;
+  };
+
+  const handleRescue = async (video: CreatorVideo) => {
+    setRescueError("");
+    const existing = parseRescue(video.viralRescue);
+    if (existing) {
+      setRescueModal({ video, rescue: existing });
+      return;
+    }
+    setRescuingId(video.id);
+    try {
+      const rescue = await runRescue(video);
+      if (rescue) {
+        await onReload();
+        setRescueModal({ video, rescue });
+      }
+    } finally {
+      setRescuingId(null);
+    }
+  };
+
+  const handleRegenerate = async () => {
+    if (!rescueModal) return;
+    setRescueError("");
+    setRegenerating(true);
+    try {
+      const rescue = await runRescue(rescueModal.video);
+      if (rescue) {
+        await onReload();
+        setRescueModal({ video: rescueModal.video, rescue });
+      }
+    } finally {
+      setRegenerating(false);
     }
   };
 
@@ -104,6 +167,12 @@ export function CreatorVideoGrid({
       {analyzeError && (
         <div className="rounded-xl bg-red-500/5 border border-red-500/10 p-3">
           <p className="text-[11px] text-red-400/80">{analyzeError}</p>
+        </div>
+      )}
+
+      {rescueError && (
+        <div className="rounded-xl bg-red-500/5 border border-red-500/10 p-3">
+          <p className="text-[11px] text-red-400/80">{rescueError}</p>
         </div>
       )}
 
@@ -160,13 +229,13 @@ export function CreatorVideoGrid({
                   </Badge>
                 )}
 
-                <div className="flex gap-1.5 pt-1">
+                <div className="flex flex-col gap-1.5 pt-1">
                   {video.analysis ? (
                     <Button
                       variant="ghost"
                       size="sm"
                       onClick={() => setModalVideo(video)}
-                      className="flex-1 rounded-xl text-[11px] h-7 gap-1 transition-all duration-200 glass border-white/[0.06] text-emerald-400/90 hover:text-emerald-300"
+                      className="w-full rounded-xl text-[11px] h-7 gap-1 transition-all duration-200 glass border-white/[0.06] text-emerald-400/90 hover:text-emerald-300"
                     >
                       <Search className="h-3 w-3" />
                       View Analysis
@@ -177,7 +246,7 @@ export function CreatorVideoGrid({
                       size="sm"
                       onClick={() => handleAnalyze(video)}
                       disabled={analyzingId !== null}
-                      className="flex-1 rounded-xl text-[11px] h-7 gap-1 transition-all duration-200 glass border-white/[0.06] text-muted-foreground hover:text-foreground"
+                      className="w-full rounded-xl text-[11px] h-7 gap-1 transition-all duration-200 glass border-white/[0.06] text-muted-foreground hover:text-foreground"
                     >
                       {analyzingId === video.id ? (
                         <Loader2 className="h-3 w-3 animate-spin" />
@@ -187,6 +256,28 @@ export function CreatorVideoGrid({
                       {analyzingId === video.id ? "Analyzing..." : "Analyze with AI"}
                     </Button>
                   )}
+                  {(() => {
+                    const hasRescue = !!parseRescue(video.viralRescue);
+                    const isFlop = accountAvgViews > 0 && video.views < accountAvgViews;
+                    return (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleRescue(video)}
+                        disabled={rescuingId !== null}
+                        className={`w-full rounded-xl text-[11px] h-7 gap-1 transition-all duration-200 border ${
+                          hasRescue
+                            ? "border-orange-500/20 bg-orange-500/[0.06] text-orange-300/90 hover:text-orange-200"
+                            : isFlop
+                            ? "border-orange-500/30 bg-orange-500/[0.08] text-orange-300 hover:bg-orange-500/[0.14]"
+                            : "glass border-white/[0.06] text-muted-foreground hover:text-foreground"
+                        }`}
+                      >
+                        {rescuingId === video.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Flame className="h-3 w-3" />}
+                        {rescuingId === video.id ? "Rescuing..." : hasRescue ? "View Rescue" : "Make It Viral"}
+                      </Button>
+                    );
+                  })()}
                 </div>
               </div>
             </div>
@@ -263,6 +354,15 @@ export function CreatorVideoGrid({
           )}
         </DialogContent>
       </Dialog>
+
+      <ViralRescueModal
+        video={rescueModal?.video || null}
+        rescue={rescueModal?.rescue || null}
+        open={!!rescueModal}
+        onClose={() => setRescueModal(null)}
+        onRegenerate={handleRegenerate}
+        regenerating={regenerating}
+      />
     </div>
   );
 }

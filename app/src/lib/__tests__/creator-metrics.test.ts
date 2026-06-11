@@ -22,6 +22,7 @@ const video = (overrides: Partial<CreatorVideo> = {}): CreatorVideo => ({
   topic: "",
   analysis: "",
   dateAdded: "2026-06-11",
+  viralRescue: "",
   ...overrides,
 });
 

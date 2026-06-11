@@ -15,6 +15,7 @@ const existingVideo = (overrides: Partial<CreatorVideo> = {}): CreatorVideo => (
   topic: "Real Estate",
   analysis: "deep analysis",
   dateAdded: "2026-01-02",
+  viralRescue: "",
   ...overrides,
 });
 

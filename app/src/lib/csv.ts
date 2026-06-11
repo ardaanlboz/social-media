@@ -93,7 +93,7 @@ export function appendVideo(video: Video) {
 }
 
 // Creator videos (the user's own account)
-const CREATOR_VIDEO_COLUMNS = ["id", "link", "videoUrl", "thumbnail", "caption", "views", "likes", "comments", "datePosted", "topic", "analysis", "dateAdded"];
+const CREATOR_VIDEO_COLUMNS = ["id", "link", "videoUrl", "thumbnail", "caption", "views", "likes", "comments", "datePosted", "topic", "analysis", "dateAdded", "viralRescue"];
 
 export function readCreatorVideos(): CreatorVideo[] {
   const raw = readCsv<Record<string, string>>("creator-videos.csv");
@@ -110,6 +110,7 @@ export function readCreatorVideos(): CreatorVideo[] {
     topic: r.topic || "",
     analysis: r.analysis || "",
     dateAdded: r.dateAdded || "",
+    viralRescue: r.viralRescue || "",
   }));
 }
 

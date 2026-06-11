@@ -55,6 +55,7 @@ export function mergeCreatorVideos(
         topic: "",
         analysis: "",
         dateAdded: today,
+        viralRescue: "",
       });
       added++;
     }

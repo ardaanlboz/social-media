@@ -95,6 +95,46 @@ export interface CreatorVideo {
   topic: string;
   analysis: string;
   dateAdded: string;
+  viralRescue: string;
+}
+
+export interface ViralRescueHook {
+  angle: string;
+  spokenLine: string;
+  onScreenText: string;
+  openingVisual: string;
+  whyItWorks: string;
+}
+
+export interface ViralRescueRetentionFix {
+  timestamp: string;
+  issue: string;
+  fix: string;
+}
+
+export interface ViralRescuePriority {
+  rank: number;
+  change: string;
+  impact: "high" | "medium" | "low";
+  effort: "high" | "medium" | "low";
+  expectedEffect: string;
+}
+
+export interface ViralRescue {
+  viralityScore: { current: number; potential: number; oneLineVerdict: string };
+  hookAutopsy: {
+    whatYouDid: string;
+    firstFrameVerdict: string;
+    whyItFlopped: string[];
+    scrollStopScore: number;
+  };
+  newHooks: ViralRescueHook[];
+  recommendedHookIndex: number;
+  recommendedReason: string;
+  retentionFixes: ViralRescueRetentionFix[];
+  rewrittenScript: string;
+  captionAndCta: { caption: string; cta: string };
+  priorityChanges: ViralRescuePriority[];
 }
 
 export interface CreatorProfile {
