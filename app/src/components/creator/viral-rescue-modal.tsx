@@ -57,12 +57,12 @@ export function ViralRescueModal({
 }) {
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent className="max-w-4xl max-h-[92vh] overflow-hidden glass-strong rounded-2xl border-white/[0.08] p-0 gap-0">
+      <DialogContent className="max-w-4xl max-h-[92vh] flex flex-col overflow-hidden glass-strong rounded-2xl border-white/[0.08] p-0 gap-0">
         <DialogTitle className="sr-only">Viral Rescue</DialogTitle>
         {video && rescue && (
           <>
             {/* Header */}
-            <div className="flex items-center gap-4 p-5 border-b border-white/[0.06]">
+            <div className="flex items-center gap-4 p-5 border-b border-white/[0.06] shrink-0">
               <div className="relative h-16 w-12 shrink-0 rounded-lg overflow-hidden bg-white/[0.02]">
                 {video.thumbnail ? (
                   // eslint-disable-next-line @next/next/no-img-element
@@ -101,7 +101,7 @@ export function ViralRescueModal({
             </div>
 
             {/* Body */}
-            <div className="overflow-y-auto max-h-[calc(92vh-92px)] p-6 space-y-7">
+            <div className="flex-1 min-h-0 overflow-y-auto p-6 space-y-7">
               {/* Virality score */}
               <div className="glass rounded-2xl p-5">
                 <div className="flex items-center gap-2 mb-4">

@@ -295,11 +295,11 @@ export function CreatorVideoGrid({
 
       {/* Analysis modal */}
       <Dialog open={!!modalVideo} onOpenChange={(open) => { if (!open) setModalVideo(null); }}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden glass-strong rounded-2xl border-white/[0.08] p-0 gap-0">
+        <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col overflow-hidden glass-strong rounded-2xl border-white/[0.08] p-0 gap-0">
           <DialogTitle className="sr-only">Video Analysis</DialogTitle>
           {modalVideo && (
             <>
-              <div className="flex items-center gap-4 p-5 border-b border-white/[0.06]">
+              <div className="flex items-center gap-4 p-5 border-b border-white/[0.06] shrink-0">
                 <div className="relative h-16 w-12 shrink-0 rounded-lg overflow-hidden bg-white/[0.02]">
                   {modalVideo.thumbnail ? (
                     // eslint-disable-next-line @next/next/no-img-element
@@ -347,7 +347,7 @@ export function CreatorVideoGrid({
                   </div>
                 </div>
               </div>
-              <div className="overflow-y-auto max-h-[calc(90vh-100px)] p-6">
+              <div className="flex-1 min-h-0 overflow-y-auto p-6">
                 <MarkdownContent content={modalVideo.analysis} variant="analysis" />
               </div>
             </>
