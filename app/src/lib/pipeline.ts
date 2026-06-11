@@ -3,7 +3,9 @@ import { readConfigs, readCreators, readVideos, writeVideos } from "./csv";
 import { scrapeReels } from "./apify";
 import { uploadVideo, analyzeVideo } from "./gemini";
 import { generateNewConcepts } from "./claude";
-import type { PipelineParams, PipelineProgress, Video, ActiveTask } from "./types";
+import { readMasterChecklist } from "./checklist";
+import { verifyConcepts, reviseConcepts } from "./verifier";
+import type { PipelineParams, PipelineProgress, Video, ActiveTask, ChecklistResult, ChecklistVerdict } from "./types";
 
 const VIDEO_CONCURRENCY = 3;
 
@@ -81,6 +83,19 @@ export async function runPipeline(
     if (!config) throw new Error(`Config "${params.configName}" not found`);
 
     log(`Loaded config: ${config.configName}`);
+
+    const masterChecklist = readMasterChecklist();
+    if (masterChecklist) log("Master scripting checklist loaded — verification enabled");
+
+    const analysisInstruction = masterChecklist
+      ? `${config.analysisInstruction}
+
+# CHECKLIST EVALUATION
+After the sections above, add a "# CHECKLIST" section: for each item of the master scripting checklist below, state in one line whether this reference video satisfies it and how.
+------
+${masterChecklist}
+------`
+      : config.analysisInstruction;
 
     // Load creators
     const allCreators = readCreators();
@@ -180,13 +195,49 @@ export async function runPipeline(
         const analysis = await analyzeVideo(
           fileData.uri,
           fileData.mimeType,
-          config.analysisInstruction
+          analysisInstruction
         );
 
         updateTask(taskId, "Claude generating concepts");
         log(`@${video.username} (${label}): Claude generating concepts`);
 
-        const newConcepts = await generateNewConcepts(analysis, config.newConceptsInstruction);
+        let newConcepts = await generateNewConcepts(analysis, config.newConceptsInstruction, masterChecklist);
+
+        let checklistResult = "";
+        if (masterChecklist) {
+          let verdict: ChecklistVerdict | null = null;
+          let rounds = 0;
+          try {
+            updateTask(taskId, "Verifying against checklist");
+            log(`@${video.username} (${label}): verifying against checklist`);
+            verdict = await verifyConcepts(newConcepts, masterChecklist);
+
+            while (!verdict.allPass && rounds < 2) {
+              rounds++;
+              updateTask(taskId, `Revising concepts (round ${rounds})`);
+              log(`@${video.username} (${label}): revising concepts (round ${rounds})`);
+              newConcepts = await reviseConcepts(
+                newConcepts,
+                verdict,
+                analysis,
+                config.newConceptsInstruction,
+                masterChecklist
+              );
+              updateTask(taskId, "Re-verifying");
+              verdict = await verifyConcepts(newConcepts, masterChecklist);
+            }
+          } catch (err) {
+            // A grading failure must never lose a video — keep the last verdict (if any) and move on.
+            log(`@${video.username} (${label}): checklist step failed (${err instanceof Error ? err.message : err})`);
+          }
+          if (verdict) {
+            const result: ChecklistResult = { verdict, revisionRounds: rounds };
+            checklistResult = JSON.stringify(result);
+            log(
+              `@${video.username} (${label}): checklist ${verdict.allPass ? "passed" : "NOT fully passed"} after ${rounds} revision round(s)`
+            );
+          }
+        }
 
         const videoRecord: Video = {
           id: uuid(),
@@ -202,7 +253,7 @@ export async function runPipeline(
           dateAdded: new Date().toISOString().slice(0, 10),
           configName: params.configName,
           starred: false,
-          checklistResult: "",
+          checklistResult,
         };
 
         newVideos.push(videoRecord);
