@@ -3,12 +3,23 @@ import Anthropic from "@anthropic-ai/sdk";
 export async function generateNewConcepts(
   videoAnalysis: string,
   newConceptsPrompt: string,
-  masterChecklist = ""
+  masterChecklist = "",
+  nexusFramework = ""
 ): Promise<string> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error("ANTHROPIC_API_KEY not set");
 
   const client = new Anthropic({ apiKey });
+
+  const frameworkSection = nexusFramework
+    ? `
+# NEXUS FRAMEWORK (MANDATORY WRITING RULES)
+Write every concept and script following these rules (You-form, conviction, linear storytelling, unique power words, simplicity, visual-in-mind, hook expansion, etc.).
+------
+${nexusFramework}
+------
+`
+    : "";
 
   const checklistSection = masterChecklist
     ? `
@@ -41,7 +52,7 @@ ${videoAnalysis}
 ------
 ${newConceptsPrompt}
 ------
-${checklistSection}
+${frameworkSection}${checklistSection}
 # BEGIN YOUR WORK`,
       },
     ],
