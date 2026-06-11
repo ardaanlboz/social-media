@@ -46,13 +46,23 @@ npm run dev
 3. **Scrape** — For each competitor creator, scrape recent Instagram Reels via Apify
 4. **Filter & Rank** — Filter by date, sort by views, take top-K most viral
 5. **Analyze** — Download video, upload to Gemini, analyze (extracts Concept, Hook, Retention, Reward, Script)
-6. **Generate** — Send analysis + brand context to Claude for adapted video concepts
-7. **Save** — Append results to `data/videos.csv`, viewable in the Videos page with thumbnails
+6. **Generate** — Send analysis + brand context to Claude for adapted video concepts (master scripting checklist injected as mandatory rules)
+7. **Verify** — Independent Claude verifier grades every concept against the master checklist; failing concepts are revised with the verifier's feedback (max 2 rounds); the final scorecard is saved with the video
+8. **Save** — Append results to `data/videos.csv`, viewable in the Videos page with thumbnails and checklist scorecards
 
 ### Two Customizable Prompts Per Config
 
 - **Analysis Instruction** — How Gemini should break down the video
 - **New Concepts Instruction** — How Claude should adapt the reference for the brand
+
+### Master Scripting Checklist
+
+A global checklist (`data/master-checklist.md`, editable on the Configs page) that oversees every generation:
+- Injected into the Gemini analysis prompt (reference video is evaluated against it)
+- Injected into the Claude concepts prompt as mandatory rules
+- Enforced by `lib/verifier.ts`: independent grading + up to 2 automatic revision rounds
+- Verdict saved per video as JSON in the `checklistResult` column, rendered as a scorecard in the Videos page
+- Item line format: `- [item-id] Label: criterion`; an empty/missing file disables the feature entirely
 
 ---
 
@@ -70,12 +80,15 @@ npm run dev
 │   │   │   ├── run/page.tsx               # Pipeline runner with live progress
 │   │   │   ├── configs/page.tsx           # Config management
 │   │   │   ├── creators/page.tsx          # Creator management
-│   │   │   └── api/                       # API routes (configs, creators, videos, pipeline)
+│   │   │   └── api/                       # API routes (configs, creators, videos, pipeline, checklist)
 │   │   ├── lib/                           # Core logic
 │   │   │   ├── pipeline.ts               # Pipeline orchestration
 │   │   │   ├── apify.ts                  # Apify scraper client
 │   │   │   ├── gemini.ts                 # Gemini video analysis client
 │   │   │   ├── claude.ts                 # Claude concept generation client
+│   │   │   ├── checklist.ts              # Master checklist file read/write
+│   │   │   ├── checklist-parse.ts        # Client-safe checklist item parser
+│   │   │   ├── verifier.ts               # Checklist verify-and-revise (Claude)
 │   │   │   ├── csv.ts                    # CSV read/write utilities
 │   │   │   └── types.ts                  # TypeScript interfaces
 │   │   └── components/                    # UI components (shadcn + custom)
@@ -83,6 +96,7 @@ npm run dev
 ├── data/                                  # CSV data storage
 │   ├── configs.csv                        # Pipeline configurations
 │   ├── creators.csv                       # Instagram creator accounts
+│   ├── master-checklist.md                # Global scripting checklist
 │   └── videos.csv                         # Analyzed video results
 ├── context/                               # Background context for Claude
 ├── plans/                                 # Implementation plans
