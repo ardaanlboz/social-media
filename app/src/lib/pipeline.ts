@@ -4,6 +4,7 @@ import { scrapeReels } from "./apify";
 import { uploadVideo, analyzeVideo } from "./gemini";
 import { generateNewConcepts } from "./claude";
 import { readMasterChecklist } from "./checklist";
+import { readNexusFramework } from "./framework";
 import { verifyConcepts, reviseConcepts } from "./verifier";
 import type { PipelineParams, PipelineProgress, Video, ActiveTask, ChecklistResult, ChecklistVerdict } from "./types";
 
@@ -87,15 +88,28 @@ export async function runPipeline(
     const masterChecklist = readMasterChecklist();
     if (masterChecklist) log("Master scripting checklist loaded — verification enabled");
 
-    const analysisInstruction = masterChecklist
-      ? `${config.analysisInstruction}
+    const nexusFramework = readNexusFramework();
+    if (nexusFramework) log("Nexus framework loaded — writing rules enabled");
+
+    let analysisInstruction = config.analysisInstruction;
+    if (masterChecklist) {
+      analysisInstruction += `
 
 # CHECKLIST EVALUATION
 After the sections above, add a "# CHECKLIST" section: for each item of the master scripting checklist below, state in one line whether this reference video satisfies it and how.
 ------
 ${masterChecklist}
-------`
-      : config.analysisInstruction;
+------`;
+    }
+    if (nexusFramework) {
+      analysisInstruction += `
+
+# NEXUS FRAMEWORK (CONTEXT)
+Where relevant, use the vocabulary and concepts of this framework (hooks, interest peak, value trinity, CTA types, sandwich storytelling) when describing the reference video.
+------
+${nexusFramework}
+------`;
+    }
 
     // Load creators
     const allCreators = readCreators();
@@ -201,7 +215,7 @@ ${masterChecklist}
         updateTask(taskId, "Claude generating concepts");
         log(`@${video.username} (${label}): Claude generating concepts`);
 
-        let newConcepts = await generateNewConcepts(analysis, config.newConceptsInstruction, masterChecklist);
+        let newConcepts = await generateNewConcepts(analysis, config.newConceptsInstruction, masterChecklist, nexusFramework);
 
         let checklistResult = "";
         if (masterChecklist) {
@@ -221,7 +235,8 @@ ${masterChecklist}
                 verdict,
                 analysis,
                 config.newConceptsInstruction,
-                masterChecklist
+                masterChecklist,
+                nexusFramework
               );
               updateTask(taskId, "Re-verifying");
               verdict = await verifyConcepts(newConcepts, masterChecklist);
