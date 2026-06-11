@@ -89,7 +89,8 @@ export async function reviseConcepts(
   verdict: ChecklistVerdict,
   videoAnalysis: string,
   newConceptsPrompt: string,
-  checklistMarkdown: string
+  checklistMarkdown: string,
+  nexusFramework = ""
 ): Promise<string> {
   const client = getClient();
   const failures = verdict.concepts
@@ -100,6 +101,16 @@ export async function reviseConcepts(
     })
     .filter(Boolean)
     .join("\n\n");
+
+  const frameworkSection = nexusFramework
+    ? `
+# NEXUS FRAMEWORK (MANDATORY WRITING RULES)
+Write every concept and script following these rules (You-form, conviction, linear storytelling, unique power words, simplicity, visual-in-mind, hook expansion, etc.).
+------
+${nexusFramework}
+------
+`
+    : "";
 
   const message = await client.messages.create({
     model: MODEL,
@@ -122,7 +133,7 @@ ${videoAnalysis}
 ------
 ${newConceptsPrompt}
 ------
-
+${frameworkSection}
 # MASTER SCRIPTING CHECKLIST (MANDATORY)
 ------
 ${checklistMarkdown}
