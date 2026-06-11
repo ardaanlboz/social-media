@@ -157,3 +157,29 @@ export interface PipelineRun {
   videosAdded: number;
   errorCount: number;
 }
+
+// ── Chat assistant ──────────────────────────────────────────────────────────
+
+// A single tool invocation the assistant made during a turn, kept for UI display
+// (the raw tool_use/tool_result blocks only live in-memory during the agentic loop).
+export interface ChatToolCall {
+  name: string;
+  label: string;
+  ok: boolean;
+}
+
+export interface ChatMessage {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  toolCalls?: ChatToolCall[];
+  createdAt: string;
+}
+
+export interface ChatConversation {
+  id: string;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
+  messages: ChatMessage[];
+}

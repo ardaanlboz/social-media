@@ -1,44 +1,13 @@
 import { NextResponse } from "next/server";
-import { readCreatorVideos, writeCreatorVideos } from "@/lib/csv";
-import { fetchCreatorVideoMedia } from "@/lib/creator-media";
-import { uploadVideo, analyzeVideo } from "@/lib/gemini";
-import { buildCreatorAnalysisPrompt } from "@/lib/creator-ai";
-import { computeOverview } from "@/lib/creator-metrics";
+import { runCreatorAnalysis } from "@/lib/creator-actions";
 
 export const maxDuration = 300;
 
 export async function POST(request: Request) {
   const { videoId } = await request.json();
-  const videos = readCreatorVideos();
-  const video = videos.find((v) => v.id === videoId);
-  if (!video) return NextResponse.json({ error: "Video not found" }, { status: 404 });
-
-  let media;
-  try {
-    media = await fetchCreatorVideoMedia(video);
-  } catch (err) {
-    return NextResponse.json(
-      { error: `Could not fetch video: ${err instanceof Error ? err.message : err}` },
-      { status: 502 }
-    );
+  const result = await runCreatorAnalysis(videoId);
+  if (!result.ok) {
+    return NextResponse.json({ error: result.error }, { status: result.status });
   }
-
-  try {
-    const fileData = await uploadVideo(media.buffer, media.contentType);
-    const { avgViews } = computeOverview(videos);
-    const analysis = await analyzeVideo(
-      fileData.uri,
-      fileData.mimeType,
-      buildCreatorAnalysisPrompt(video, avgViews)
-    );
-
-    video.analysis = analysis;
-    writeCreatorVideos(videos);
-    return NextResponse.json({ analysis });
-  } catch (err) {
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Analysis failed" },
-      { status: 500 }
-    );
-  }
+  return NextResponse.json({ analysis: result.data.analysis });
 }

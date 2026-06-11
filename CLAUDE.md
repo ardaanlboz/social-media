@@ -64,6 +64,15 @@ The `/creator` page analyzes the user's own Instagram account (single account, s
 - **Make It Viral / Viral Rescue** (per video, hook-focused) — two-stage: Gemini watches the reel and reports ground truth, then Claude (`VIRAL_RESCUE_SYSTEM_PROMPT`, brutally-honest strategist) returns structured JSON — virality score, hook autopsy, **5 ready-to-film replacement hooks**, retention fixes, a rewritten script, caption/CTA, ranked priority changes. Rendered in `ViralRescueModal`; saved to the video's `viralRescue` column so "View Rescue" reopens instantly. The button gets a flame accent on below-average (flopped) videos.
 - **Generate Insights** (account level) — one Claude call over the full metrics table + analyses → markdown report stored on the profile
 
+### Chat Assistant (Tactical AI Chat)
+
+The `/chat` page ("Assistant" in the sidebar) is a no-BS tactical strategist connected to all of the user's data:
+- **Context** — every turn injects a cached digest (`lib/chat-context.ts`) of the creator profile + account insights, a table of all own reels, a table of all analyzed competitor reels, and the checklist + framework. Full per-video analyses are fetched on demand via tools.
+- **Model** — Claude **Opus 4.8** (`lib/chat.ts`), responses streamed token-by-token over SSE; manual tool-use agentic loop.
+- **Tools** (`lib/chat-tools.ts`) — read: `get_my_video`, `get_competitor_video`; act: `analyze_my_video`, `make_video_viral`, `generate_account_insights` (these reuse the shared `lib/creator-actions.ts` functions that also back the My Creator routes — no duplicated pipeline). Tool activity streams as live chips in the UI.
+- **Persistence** — conversations stored in `data/chats.json` (`lib/chat-store.ts`); left rail lists past chats, resume by clicking. Cross-turn history is stored as user/assistant text + a summary of actions taken.
+- **System prompt** — brutally honest, grounds every claim in the user's real numbers, leads with the answer, calls tools instead of describing them.
+
 ### Two Customizable Prompts Per Config
 
 - **Analysis Instruction** — How Gemini should break down the video
@@ -97,12 +106,13 @@ A global content-creation framework (`data/nexus-framework.md`, editable on the 
 │   ├── src/
 │   │   ├── app/                           # Pages and API routes
 │   │   │   ├── page.tsx                   # Dashboard
+│   │   │   ├── chat/page.tsx              # Assistant: tactical AI chat over all data
 │   │   │   ├── videos/page.tsx            # Videos browser with thumbnails
 │   │   │   ├── run/page.tsx               # Pipeline runner with live progress + run history
 │   │   │   ├── creator/page.tsx           # My Creator: own-account analytics
 │   │   │   ├── configs/page.tsx           # Config management
 │   │   │   ├── creators/page.tsx          # Creator management
-│   │   │   └── api/                       # API routes (configs, creators, videos, pipeline, checklist, framework, runs, creator + creator/refresh|analyze|insights)
+│   │   │   └── api/                       # API routes (configs, creators, videos, pipeline, checklist, framework, runs, creator + creator/refresh|analyze|insights, chat SSE)
 │   │   ├── lib/                           # Core logic
 │   │   │   ├── pipeline.ts               # Pipeline orchestration (+ run history)
 │   │   │   ├── apify.ts                  # Apify scraper client (+ single-post re-scrape)
@@ -117,9 +127,14 @@ A global content-creation framework (`data/nexus-framework.md`, editable on the 
 │   │   │   ├── creator-profile.ts        # Own-account profile JSON store
 │   │   │   ├── creator-ai.ts             # Topics, creator analysis prompt, insights, viral-rescue prompts+parser (Claude)
 │   │   │   ├── creator-media.ts          # Shared reel download w/ expired-URL re-scrape (analyze + rescue)
+│   │   │   ├── creator-actions.ts        # Shared analyze/rescue/insights fns (back routes + chat tools)
+│   │   │   ├── chat.ts                   # Chat assistant: Opus 4.8 streaming tool-use loop
+│   │   │   ├── chat-context.ts           # Builds the all-data digest for the assistant (tested)
+│   │   │   ├── chat-tools.ts             # Assistant tool schemas + executors (read + actions)
+│   │   │   ├── chat-store.ts             # Conversation persistence in data/chats.json (tested)
 │   │   │   ├── csv.ts                    # CSV read/write utilities (incl. creator-videos, runs)
 │   │   │   └── types.ts                  # TypeScript interfaces
-│   │   ├── components/                    # UI components (shadcn + custom, creator/ sections)
+│   │   ├── components/                    # UI components (shadcn + custom, creator/ + chat/ sections)
 │   │   └── lib/__tests__/                 # Vitest unit tests (npm run test)
 │   └── package.json
 ├── data/                                  # User data — ALL gitignored, created at runtime
@@ -130,7 +145,8 @@ A global content-creation framework (`data/nexus-framework.md`, editable on the 
 │   ├── videos.csv                         # Analyzed video results
 │   ├── runs.csv                           # Pipeline run history
 │   ├── creator-profile.json               # Own-account profile + insights
-│   └── creator-videos.csv                 # Own-account scraped reels + analyses
+│   ├── creator-videos.csv                 # Own-account scraped reels + analyses
+│   └── chats.json                         # Chat assistant conversation history
 ├── context/                               # Background context for Claude
 ├── plans/                                 # Implementation plans
 └── .claude/commands/                      # Slash commands (prime, create-plan, implement)
@@ -143,6 +159,7 @@ A global content-creation framework (`data/nexus-framework.md`, editable on the 
 | Page | Path | Description |
 |------|------|-------------|
 | Dashboard | `/` | Summary stats, recent videos |
+| Assistant | `/chat` | Tactical no-BS AI chat (Opus 4.8) connected to all videos, analyses, competitors & insights; can analyze/rescue videos and generate insights via tools; persistent history |
 | Videos | `/videos` | Browse results with thumbnails, expandable analysis & concepts |
 | Run Pipeline | `/run` | Select config, set params, run with live progress streaming + recent run history |
 | My Creator | `/creator` | Own-account analytics: refresh latest reels, rankings, topic breakdown, posting patterns, on-demand AI analysis, viral rescue (Make It Viral), & insights |
