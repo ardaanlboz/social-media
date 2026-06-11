@@ -13,7 +13,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Pencil, Trash2, Settings2, Sparkles, Search, Users, Film, ClipboardCheck } from "lucide-react";
+import { Plus, Pencil, Trash2, Settings2, Sparkles, Search, Users, Film, ClipboardCheck, BookOpen } from "lucide-react";
 import type { Config, Creator, Video } from "@/lib/types";
 import { parseChecklistItems } from "@/lib/checklist-parse";
 
@@ -33,6 +33,8 @@ export default function ConfigsPage() {
   const [form, setForm] = useState(emptyConfig);
   const [checklist, setChecklist] = useState("");
   const [checklistSaving, setChecklistSaving] = useState(false);
+  const [framework, setFramework] = useState("");
+  const [frameworkSaving, setFrameworkSaving] = useState(false);
 
   const loadConfigs = () => {
     fetch("/api/configs").then((r) => r.json()).then(setConfigs);
@@ -43,6 +45,7 @@ export default function ConfigsPage() {
     fetch("/api/creators").then((r) => r.json()).then(setCreators);
     fetch("/api/videos").then((r) => r.json()).then(setVideos);
     fetch("/api/checklist").then((r) => r.json()).then((d) => setChecklist(d.content || ""));
+    fetch("/api/framework").then((r) => r.json()).then((d) => setFramework(d.content || ""));
   }, []);
 
   const openNew = () => {
@@ -94,6 +97,16 @@ export default function ConfigsPage() {
       body: JSON.stringify({ content: checklist }),
     });
     setChecklistSaving(false);
+  };
+
+  const saveFramework = async () => {
+    setFrameworkSaving(true);
+    await fetch("/api/framework", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content: framework }),
+    });
+    setFrameworkSaving(false);
   };
 
   const checklistItemCount = parseChecklistItems(checklist).length;
@@ -200,6 +213,35 @@ export default function ConfigsPage() {
           className="mt-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 border-0"
         >
           {checklistSaving ? "Saving..." : "Save Checklist"}
+        </Button>
+      </div>
+
+      {/* Nexus Framework */}
+      <div className="glass rounded-2xl p-5">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500/20 to-orange-500/20 border border-amber-500/20">
+            <BookOpen className="h-4 w-4 text-amber-400" />
+          </div>
+          <div>
+            <h3 className="text-sm font-semibold">Nexus Framework</h3>
+            <p className="text-xs text-muted-foreground">
+              Global writing rules injected into every analysis and generation — not graded
+            </p>
+          </div>
+        </div>
+        <Textarea
+          value={framework}
+          onChange={(e) => setFramework(e.target.value)}
+          rows={12}
+          placeholder="Content-creation framework injected as writing rules..."
+          className="mt-4 rounded-xl glass border-white/[0.08] font-mono text-xs leading-relaxed"
+        />
+        <Button
+          onClick={saveFramework}
+          disabled={frameworkSaving}
+          className="mt-3 rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 border-0"
+        >
+          {frameworkSaving ? "Saving..." : "Save Framework"}
         </Button>
       </div>
 
