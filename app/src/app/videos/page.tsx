@@ -16,14 +16,26 @@ import {
   DialogContent,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Heart, MessageCircle, Film, Sparkles, Search, Star, Play, ArrowUpDown, X, ExternalLink } from "lucide-react";
+import { Heart, MessageCircle, Film, Sparkles, Search, Star, Play, ArrowUpDown, X, ExternalLink, Check, ClipboardCheck } from "lucide-react";
 import { MarkdownContent } from "@/components/markdown-content";
-import type { Video, Config } from "@/lib/types";
+import type { Video, Config, ChecklistResult } from "@/lib/types";
+import { parseChecklistItems } from "@/lib/checklist-parse";
 
 function formatViews(n: number): string {
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1).replace(/\.0$/, "") + "M";
   if (n >= 1_000) return (n / 1_000).toFixed(1).replace(/\.0$/, "") + "K";
   return n.toString();
+}
+
+function parseChecklistResult(raw: string): ChecklistResult | null {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as ChecklistResult;
+    if (!parsed?.verdict?.concepts) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
 }
 
 type SortOption = "views" | "date-posted" | "date-added" | "starred";
@@ -45,13 +57,22 @@ function VideosContent() {
   const [sortBy, setSortBy] = useState<SortOption>("views");
   const [modalVideo, setModalVideo] = useState<Video | null>(null);
   const [modalSection, setModalSection] = useState<"analysis" | "concepts">("analysis");
+  const [checklistContent, setChecklistContent] = useState("");
 
   useEffect(() => {
     fetch("/api/videos").then((r) => r.json()).then(setVideos);
     fetch("/api/configs").then((r) => r.json()).then(setConfigs);
+    fetch("/api/checklist").then((r) => r.json()).then((d) => setChecklistContent(d.content || ""));
   }, []);
 
   const uniqueCreators = [...new Set(videos.map((v) => v.creator))].sort();
+
+  const itemLabels = new Map(parseChecklistItems(checklistContent).map((i) => [i.id, i.label]));
+  const modalChecklist = modalVideo ? parseChecklistResult(modalVideo.checklistResult) : null;
+  const modalChecklistItems = modalChecklist
+    ? modalChecklist.verdict.concepts.flatMap((c) => c.items)
+    : [];
+  const modalChecklistPassed = modalChecklistItems.filter((i) => i.pass).length;
 
   const filtered = videos
     .filter((v) => {
@@ -332,6 +353,41 @@ function VideosContent() {
 
               {/* Modal body — scrollable */}
               <div className="overflow-y-auto max-h-[calc(90vh-100px)] p-6">
+                {modalSection === "concepts" && modalChecklist && (
+                  <div className="mb-6 space-y-3">
+                    <div className="flex items-center gap-2">
+                      <ClipboardCheck className="h-4 w-4 text-emerald-400" />
+                      <p className="text-sm font-semibold">
+                        Checklist: {modalChecklistPassed}/{modalChecklistItems.length} passed
+                        {modalChecklist.revisionRounds > 0 &&
+                          ` · ${modalChecklist.revisionRounds} revision round${modalChecklist.revisionRounds > 1 ? "s" : ""}`}
+                      </p>
+                    </div>
+                    {modalChecklist.verdict.concepts.map((concept, ci) => (
+                      <div key={ci} className="rounded-xl bg-black/20 border border-white/[0.04] p-3">
+                        <p className="text-[10px] font-medium text-emerald-400 uppercase tracking-wider mb-2">
+                          {concept.conceptLabel}
+                        </p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {concept.items.map((item) => (
+                            <span
+                              key={item.itemId}
+                              title={item.feedback || undefined}
+                              className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] border ${
+                                item.pass
+                                  ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-300"
+                                  : "bg-red-500/10 border-red-500/20 text-red-300"
+                              }`}
+                            >
+                              {item.pass ? <Check className="h-3 w-3" /> : <X className="h-3 w-3" />}
+                              {itemLabels.get(item.itemId) || item.itemId}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
                 <MarkdownContent
                   content={modalSection === "analysis" ? modalVideo.analysis : modalVideo.newConcepts}
                   variant={modalSection === "analysis" ? "analysis" : "concepts"}
