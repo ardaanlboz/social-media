@@ -1,5 +1,5 @@
 import { v4 as uuid } from "uuid";
-import { readConfigs, readCreators, readVideos, writeVideos } from "./csv";
+import { readConfigs, readCreators, readVideos, writeVideos, appendRun } from "./csv";
 import { scrapeReels } from "./apify";
 import { uploadVideo, analyzeVideo } from "./gemini";
 import { generateNewConcepts } from "./claude";
@@ -52,6 +52,8 @@ export async function runPipeline(
     errors: [],
     log: [],
   };
+
+  const startedAt = new Date().toISOString();
 
   const emit = () => {
     onProgress({ ...progress, activeTasks: [...progress.activeTasks], log: [...progress.log], errors: [...progress.errors] });
@@ -291,6 +293,23 @@ ${nexusFramework}
       writeVideos([...existing, ...newVideos]);
     }
 
+    try {
+      appendRun({
+        id: uuid(),
+        configName: params.configName,
+        maxVideos: params.maxVideos,
+        topK: params.topK,
+        nDays: params.nDays,
+        startedAt,
+        finishedAt: new Date().toISOString(),
+        status: "completed",
+        videosAdded: newVideos.length,
+        errorCount: progress.errors.length,
+      });
+    } catch {
+      // run history must never break the pipeline
+    }
+
     progress.phase = "done";
     progress.status = "completed";
     log(`Pipeline complete! ${progress.videosAnalyzed}/${progress.videosTotal} videos analyzed, ${progress.errors.length} errors.`);
@@ -300,6 +319,22 @@ ${nexusFramework}
     const msg = `Pipeline error: ${err instanceof Error ? err.message : err}`;
     progress.errors.push(msg);
     log(msg);
+    try {
+      appendRun({
+        id: uuid(),
+        configName: params.configName,
+        maxVideos: params.maxVideos,
+        topK: params.topK,
+        nDays: params.nDays,
+        startedAt,
+        finishedAt: new Date().toISOString(),
+        status: "failed",
+        videosAdded: 0,
+        errorCount: progress.errors.length,
+      });
+    } catch {
+      // run history must never break the pipeline
+    }
     emit();
   }
 }
