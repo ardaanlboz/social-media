@@ -2,7 +2,7 @@ import { parse } from "csv-parse/sync";
 import { stringify } from "csv-stringify/sync";
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
 import path from "path";
-import type { Config, Creator, Video } from "./types";
+import type { Config, Creator, Video, CreatorVideo, PipelineRun } from "./types";
 
 const DATA_DIR = path.join(process.cwd(), "..", "data");
 
@@ -90,4 +90,58 @@ export function appendVideo(video: Video) {
   const videos = readVideos();
   videos.push(video);
   writeVideos(videos);
+}
+
+// Creator videos (the user's own account)
+const CREATOR_VIDEO_COLUMNS = ["id", "link", "videoUrl", "thumbnail", "caption", "views", "likes", "comments", "datePosted", "topic", "analysis", "dateAdded"];
+
+export function readCreatorVideos(): CreatorVideo[] {
+  const raw = readCsv<Record<string, string>>("creator-videos.csv");
+  return raw.map((r) => ({
+    id: r.id || "",
+    link: r.link || "",
+    videoUrl: r.videoUrl || "",
+    thumbnail: r.thumbnail || "",
+    caption: r.caption || "",
+    views: parseInt(r.views || "0", 10) || 0,
+    likes: parseInt(r.likes || "0", 10) || 0,
+    comments: parseInt(r.comments || "0", 10) || 0,
+    datePosted: r.datePosted || "",
+    topic: r.topic || "",
+    analysis: r.analysis || "",
+    dateAdded: r.dateAdded || "",
+  }));
+}
+
+export function writeCreatorVideos(videos: CreatorVideo[]) {
+  writeCsv("creator-videos.csv", videos as unknown as Record<string, unknown>[], CREATOR_VIDEO_COLUMNS);
+}
+
+// Pipeline run history
+const RUN_COLUMNS = ["id", "configName", "maxVideos", "topK", "nDays", "startedAt", "finishedAt", "status", "videosAdded", "errorCount"];
+
+export function readRuns(): PipelineRun[] {
+  const raw = readCsv<Record<string, string>>("runs.csv");
+  return raw.map((r) => ({
+    id: r.id || "",
+    configName: r.configName || "",
+    maxVideos: parseInt(r.maxVideos || "0", 10) || 0,
+    topK: parseInt(r.topK || "0", 10) || 0,
+    nDays: parseInt(r.nDays || "0", 10) || 0,
+    startedAt: r.startedAt || "",
+    finishedAt: r.finishedAt || "",
+    status: r.status === "failed" ? "failed" as const : "completed" as const,
+    videosAdded: parseInt(r.videosAdded || "0", 10) || 0,
+    errorCount: parseInt(r.errorCount || "0", 10) || 0,
+  }));
+}
+
+export function writeRuns(runs: PipelineRun[]) {
+  writeCsv("runs.csv", runs as unknown as Record<string, unknown>[], RUN_COLUMNS);
+}
+
+export function appendRun(run: PipelineRun) {
+  const runs = readRuns();
+  runs.push(run);
+  writeRuns(runs);
 }
