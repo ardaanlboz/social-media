@@ -31,7 +31,7 @@ function getToken(): string {
 export async function scrapeReels(
   username: string,
   maxVideos: number,
-  nDays: number
+  nDays: number,
 ): Promise<ApifyReel[]> {
   const token = getToken();
 
@@ -54,7 +54,7 @@ export async function scrapeReels(
         resultsLimit: maxVideos,
         resultsType: "stories",
       }),
-    }
+    },
   );
 
   if (!response.ok) {
@@ -66,7 +66,9 @@ export async function scrapeReels(
   return data as ApifyReel[];
 }
 
-export async function scrapeCreatorStats(username: string): Promise<CreatorStats> {
+export async function scrapeCreatorStats(
+  username: string,
+): Promise<CreatorStats> {
   const token = getToken();
 
   // 1. Get profile info (details mode)
@@ -80,7 +82,7 @@ export async function scrapeCreatorStats(username: string): Promise<CreatorStats
         resultsType: "details",
         resultsLimit: 1,
       }),
-    }
+    },
   );
 
   if (!profileRes.ok) {
@@ -88,7 +90,7 @@ export async function scrapeCreatorStats(username: string): Promise<CreatorStats
     throw new Error(`Apify profile error ${profileRes.status}: ${text}`);
   }
 
-  const profileData = await profileRes.json() as ApifyProfileResult[];
+  const profileData = (await profileRes.json()) as ApifyProfileResult[];
   const profile = profileData[0] || {};
   const profilePicUrl = profile.profilePicUrl || "";
   const followers = profile.followersCount || 0;
@@ -110,7 +112,7 @@ export async function scrapeCreatorStats(username: string): Promise<CreatorStats
         onlyPostsNewerThan: sinceDate,
         addParentData: false,
       }),
-    }
+    },
   );
 
   if (!postsRes.ok) {
@@ -118,18 +120,22 @@ export async function scrapeCreatorStats(username: string): Promise<CreatorStats
     throw new Error(`Apify posts error ${postsRes.status}: ${text}`);
   }
 
-  const posts = await postsRes.json() as ApifyReel[];
+  const posts = (await postsRes.json()) as ApifyReel[];
 
   // Filter to only video posts within 30 days
   const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
   const recentReels = posts.filter(
-    (p) => p.videoUrl && p.timestamp && new Date(p.timestamp) >= cutoff
+    (p) => p.videoUrl && p.timestamp && new Date(p.timestamp) >= cutoff,
   );
 
   const reelsCount30d = recentReels.length;
-  const avgViews30d = reelsCount30d > 0
-    ? Math.round(recentReels.reduce((sum, r) => sum + (r.videoPlayCount || 0), 0) / reelsCount30d)
-    : 0;
+  const avgViews30d =
+    reelsCount30d > 0
+      ? Math.round(
+          recentReels.reduce((sum, r) => sum + (r.videoPlayCount || 0), 0) /
+            reelsCount30d,
+        )
+      : 0;
 
   return { profilePicUrl, followers, reelsCount30d, avgViews30d };
 }
@@ -149,7 +155,7 @@ export async function scrapePostVideoUrl(postUrl: string): Promise<string> {
         resultsLimit: 1,
         addParentData: false,
       }),
-    }
+    },
   );
 
   if (!response.ok) {
