@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Film, Play, Users, Settings2 } from "lucide-react";
+import { Film, Play, Users, Settings2, UserCircle } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -19,6 +19,7 @@ import {
 const navItems = [
   { title: "Videos", href: "/videos", icon: Film },
   { title: "Run Pipeline", href: "/run", icon: Play },
+  { title: "My Creator", href: "/creator", icon: UserCircle },
   { title: "Creators", href: "/creators", icon: Users },
   { title: "Configs", href: "/configs", icon: Settings2 },
 ];
