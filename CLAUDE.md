@@ -49,6 +49,19 @@ npm run dev
 6. **Generate** — Send analysis + brand context to Claude for adapted video concepts (master scripting checklist injected as mandatory rules)
 7. **Verify** — Independent Claude verifier grades every concept against the master checklist; failing concepts are revised with the verifier's feedback (max 2 rounds); the final scorecard is saved with the video
 8. **Save** — Append results to `data/videos.csv`, viewable in the Videos page with thumbnails and checklist scorecards
+9. **Run History** — Every run (params, duration, videos added, status) is appended to `data/runs.csv` and shown in a "Recent Runs" table on the Run page
+
+### Data Persistence
+
+All user data lives in `data/` as CSV/JSON/markdown files and is **gitignored** (seeded data was removed 2026-06-11; git history retains it). The app starts empty — configs, creators, videos, runs, and the creator profile are all user-created at runtime and survive restarts and branch switches. Missing files are treated as empty and created on first write.
+
+### My Creator (Own-Account Analytics)
+
+The `/creator` page analyzes the user's own Instagram account (single account, stored in `data/creator-profile.json` + `data/creator-videos.csv`):
+- **Refresh** (SSE) — re-scrapes profile stats and the latest reels (90 days / up to 100), merges by post URL (new rows added, metrics updated on known rows), then Claude batch-classifies topics from captions, reusing existing topic labels
+- **Metrics views** (instant, no AI cost) — overview cards, best/worst rankings by views/likes/comments/engagement, per-topic breakdown with CSS bars, avg views by posting day
+- **Analyze with AI** (per video) — downloads the reel (re-scrapes a fresh CDN URL via Apify if expired), runs Gemini with a built-in creator-analysis prompt incl. performance diagnosis vs account average
+- **Generate Insights** (account level) — one Claude call over the full metrics table + analyses → markdown report stored on the profile
 
 ### Two Customizable Prompts Per Config
 
@@ -84,29 +97,38 @@ A global content-creation framework (`data/nexus-framework.md`, editable on the 
 │   │   ├── app/                           # Pages and API routes
 │   │   │   ├── page.tsx                   # Dashboard
 │   │   │   ├── videos/page.tsx            # Videos browser with thumbnails
-│   │   │   ├── run/page.tsx               # Pipeline runner with live progress
+│   │   │   ├── run/page.tsx               # Pipeline runner with live progress + run history
+│   │   │   ├── creator/page.tsx           # My Creator: own-account analytics
 │   │   │   ├── configs/page.tsx           # Config management
 │   │   │   ├── creators/page.tsx          # Creator management
-│   │   │   └── api/                       # API routes (configs, creators, videos, pipeline, checklist, framework)
+│   │   │   └── api/                       # API routes (configs, creators, videos, pipeline, checklist, framework, runs, creator + creator/refresh|analyze|insights)
 │   │   ├── lib/                           # Core logic
-│   │   │   ├── pipeline.ts               # Pipeline orchestration
-│   │   │   ├── apify.ts                  # Apify scraper client
+│   │   │   ├── pipeline.ts               # Pipeline orchestration (+ run history)
+│   │   │   ├── apify.ts                  # Apify scraper client (+ single-post re-scrape)
 │   │   │   ├── gemini.ts                 # Gemini video analysis client
 │   │   │   ├── claude.ts                 # Claude concept generation client
 │   │   │   ├── checklist.ts              # Master checklist file read/write
 │   │   │   ├── checklist-parse.ts        # Client-safe checklist item parser
 │   │   │   ├── framework.ts              # Nexus framework file read/write
 │   │   │   ├── verifier.ts               # Checklist verify-and-revise (Claude)
-│   │   │   ├── csv.ts                    # CSV read/write utilities
+│   │   │   ├── creator-merge.ts          # Pure merge of scraped reels into stored creator videos (tested)
+│   │   │   ├── creator-metrics.ts        # Client-safe own-account metrics (tested)
+│   │   │   ├── creator-profile.ts        # Own-account profile JSON store
+│   │   │   ├── creator-ai.ts             # Topic classification, creator analysis prompt, insights (Claude)
+│   │   │   ├── csv.ts                    # CSV read/write utilities (incl. creator-videos, runs)
 │   │   │   └── types.ts                  # TypeScript interfaces
-│   │   └── components/                    # UI components (shadcn + custom)
+│   │   ├── components/                    # UI components (shadcn + custom, creator/ sections)
+│   │   └── lib/__tests__/                 # Vitest unit tests (npm run test)
 │   └── package.json
-├── data/                                  # CSV data storage
+├── data/                                  # User data — ALL gitignored, created at runtime
 │   ├── configs.csv                        # Pipeline configurations
 │   ├── creators.csv                       # Instagram creator accounts
 │   ├── master-checklist.md                # Global scripting checklist
 │   ├── nexus-framework.md                 # Global content-creation framework
-│   └── videos.csv                         # Analyzed video results
+│   ├── videos.csv                         # Analyzed video results
+│   ├── runs.csv                           # Pipeline run history
+│   ├── creator-profile.json               # Own-account profile + insights
+│   └── creator-videos.csv                 # Own-account scraped reels + analyses
 ├── context/                               # Background context for Claude
 ├── plans/                                 # Implementation plans
 └── .claude/commands/                      # Slash commands (prime, create-plan, implement)
@@ -120,7 +142,8 @@ A global content-creation framework (`data/nexus-framework.md`, editable on the 
 |------|------|-------------|
 | Dashboard | `/` | Summary stats, recent videos |
 | Videos | `/videos` | Browse results with thumbnails, expandable analysis & concepts |
-| Run Pipeline | `/run` | Select config, set params, run with live progress streaming |
+| Run Pipeline | `/run` | Select config, set params, run with live progress streaming + recent run history |
+| My Creator | `/creator` | Own-account analytics: refresh latest reels, rankings, topic breakdown, posting patterns, on-demand AI analysis & insights |
 | Configs | `/configs` | CRUD for pipeline configs (prompts, categories) |
 | Creators | `/creators` | CRUD for competitor Instagram accounts |
 
