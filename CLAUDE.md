@@ -32,7 +32,7 @@ npm run dev
 - **Tailwind CSS** + **shadcn/ui** components
 - **CSV files** for data storage (in `data/` directory)
 - **Apify** — Instagram scraping
-- **Google Gemini 2.0 Flash** — Video analysis (upload + multimodal)
+- **Google Gemini 3.5 Flash** — Video analysis (upload + multimodal)
 - **Claude Sonnet** — New concept generation
 
 ---
@@ -61,6 +61,7 @@ The `/creator` page analyzes the user's own Instagram account (single account, s
 - **Refresh** (SSE) — re-scrapes profile stats and the latest reels (90 days / up to 100), merges by post URL (new rows added, metrics updated on known rows), then Claude batch-classifies topics from captions, reusing existing topic labels
 - **Metrics views** (instant, no AI cost) — overview cards, best/worst rankings by views/likes/comments/engagement, per-topic breakdown with CSS bars, avg views by posting day
 - **Analyze with AI** (per video) — downloads the reel (re-scrapes a fresh CDN URL via Apify if expired), runs Gemini with a built-in creator-analysis prompt incl. performance diagnosis vs account average
+- **Make It Viral / Viral Rescue** (per video, hook-focused) — two-stage: Gemini watches the reel and reports ground truth, then Claude (`VIRAL_RESCUE_SYSTEM_PROMPT`, brutally-honest strategist) returns structured JSON — virality score, hook autopsy, **5 ready-to-film replacement hooks**, retention fixes, a rewritten script, caption/CTA, ranked priority changes. Rendered in `ViralRescueModal`; saved to the video's `viralRescue` column so "View Rescue" reopens instantly. The button gets a flame accent on below-average (flopped) videos.
 - **Generate Insights** (account level) — one Claude call over the full metrics table + analyses → markdown report stored on the profile
 
 ### Two Customizable Prompts Per Config
@@ -114,7 +115,8 @@ A global content-creation framework (`data/nexus-framework.md`, editable on the 
 │   │   │   ├── creator-merge.ts          # Pure merge of scraped reels into stored creator videos (tested)
 │   │   │   ├── creator-metrics.ts        # Client-safe own-account metrics (tested)
 │   │   │   ├── creator-profile.ts        # Own-account profile JSON store
-│   │   │   ├── creator-ai.ts             # Topic classification, creator analysis prompt, insights (Claude)
+│   │   │   ├── creator-ai.ts             # Topics, creator analysis prompt, insights, viral-rescue prompts+parser (Claude)
+│   │   │   ├── creator-media.ts          # Shared reel download w/ expired-URL re-scrape (analyze + rescue)
 │   │   │   ├── csv.ts                    # CSV read/write utilities (incl. creator-videos, runs)
 │   │   │   └── types.ts                  # TypeScript interfaces
 │   │   ├── components/                    # UI components (shadcn + custom, creator/ sections)
@@ -143,7 +145,7 @@ A global content-creation framework (`data/nexus-framework.md`, editable on the 
 | Dashboard | `/` | Summary stats, recent videos |
 | Videos | `/videos` | Browse results with thumbnails, expandable analysis & concepts |
 | Run Pipeline | `/run` | Select config, set params, run with live progress streaming + recent run history |
-| My Creator | `/creator` | Own-account analytics: refresh latest reels, rankings, topic breakdown, posting patterns, on-demand AI analysis & insights |
+| My Creator | `/creator` | Own-account analytics: refresh latest reels, rankings, topic breakdown, posting patterns, on-demand AI analysis, viral rescue (Make It Viral), & insights |
 | Configs | `/configs` | CRUD for pipeline configs (prompts, categories) |
 | Creators | `/creators` | CRUD for competitor Instagram accounts |
 
