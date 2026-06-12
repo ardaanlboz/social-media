@@ -166,12 +166,12 @@ export default function ConfigsPage() {
               <div>
                 <Label className="text-xs text-muted-foreground flex items-center gap-1.5">
                   <Sparkles className="h-3 w-3 text-indigo-400" />
-                  New Concepts Instruction (Claude prompt)
+                  New Concepts Instruction (AI prompt)
                 </Label>
                 <Textarea
                   value={form.newConceptsInstruction}
                   onChange={(e) => setForm({ ...form, newConceptsInstruction: e.target.value })}
-                  placeholder="Prompt that tells Claude how to generate new concepts..."
+                  placeholder="Prompt that tells the AI how to generate new concepts..."
                   rows={10}
                   className="mt-1.5 rounded-xl glass border-white/[0.08] font-mono text-xs leading-relaxed"
                 />

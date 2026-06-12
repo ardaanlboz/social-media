@@ -28,6 +28,16 @@ function getToken(): string {
   return token;
 }
 
+// Apify's free tier caps total concurrent Actor memory at 8 GB. The Instagram
+// scraper defaults to a 1024 MB run; we pin it lower so several runs fit at once
+// (the pipeline scrapes multiple creators concurrently). 512 MB is plenty for
+// this actor's workload.
+const RUN_MEMORY_MB = 512;
+
+function runSyncUrl(token: string): string {
+  return `https://api.apify.com/v2/acts/apify~instagram-scraper/run-sync-get-dataset-items?token=${token}&memory=${RUN_MEMORY_MB}`;
+}
+
 export async function scrapeReels(
   username: string,
   maxVideos: number,
@@ -40,7 +50,7 @@ export async function scrapeReels(
     .slice(0, 10);
 
   const response = await fetch(
-    `https://api.apify.com/v2/acts/apify~instagram-scraper/run-sync-get-dataset-items?token=${token}`,
+    runSyncUrl(token),
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -73,7 +83,7 @@ export async function scrapeCreatorStats(
 
   // 1. Get profile info (details mode)
   const profileRes = await fetch(
-    `https://api.apify.com/v2/acts/apify~instagram-scraper/run-sync-get-dataset-items?token=${token}`,
+    runSyncUrl(token),
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -101,7 +111,7 @@ export async function scrapeCreatorStats(
     .slice(0, 10);
 
   const postsRes = await fetch(
-    `https://api.apify.com/v2/acts/apify~instagram-scraper/run-sync-get-dataset-items?token=${token}`,
+    runSyncUrl(token),
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -145,7 +155,7 @@ export async function scrapePostVideoUrl(postUrl: string): Promise<string> {
   const token = getToken();
 
   const response = await fetch(
-    `https://api.apify.com/v2/acts/apify~instagram-scraper/run-sync-get-dataset-items?token=${token}`,
+    runSyncUrl(token),
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },

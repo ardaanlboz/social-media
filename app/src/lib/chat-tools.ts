@@ -1,19 +1,19 @@
-import type Anthropic from "@anthropic-ai/sdk";
 import { readCreatorVideos, readVideos } from "./csv";
 import { engagementRate } from "./creator-metrics";
 import { runCreatorAnalysis, runViralRescue, runAccountInsights } from "./creator-actions";
+import type { GeminiFunctionDeclaration } from "./gemini";
 
-// Tool schemas exposed to Claude. Descriptions are prescriptive about WHEN to
-// call each one — Opus reaches for tools conservatively, so the trigger
-// conditions matter.
-export const CHAT_TOOLS: Anthropic.Tool[] = [
+// Tool schemas exposed to the model. Descriptions are prescriptive about WHEN
+// to call each one — the model reaches for tools conservatively, so the trigger
+// conditions matter. Gemini schema `type` values are UPPERCASE.
+export const CHAT_TOOLS: GeminiFunctionDeclaration[] = [
   {
     name: "get_my_video",
     description:
       "Fetch the FULL stored record for one of the user's own reels by id (id comes from the reels table in your data) — including the complete AI analysis and any Viral Rescue. Call this before giving deep, specific feedback on one of their videos; the always-on data only has the summary row.",
-    input_schema: {
-      type: "object",
-      properties: { videoId: { type: "string", description: "The reel id from the user's reels table" } },
+    parameters: {
+      type: "OBJECT",
+      properties: { videoId: { type: "STRING", description: "The reel id from the user's reels table" } },
       required: ["videoId"],
     },
   },
@@ -21,9 +21,9 @@ export const CHAT_TOOLS: Anthropic.Tool[] = [
     name: "get_competitor_video",
     description:
       "Fetch the FULL stored record for one analyzed competitor reel by id — including the complete AI analysis, generated concepts, and checklist scorecard. Call this before discussing a specific competitor video in depth.",
-    input_schema: {
-      type: "object",
-      properties: { videoId: { type: "string", description: "The competitor reel id" } },
+    parameters: {
+      type: "OBJECT",
+      properties: { videoId: { type: "STRING", description: "The competitor reel id" } },
       required: ["videoId"],
     },
   },
@@ -31,9 +31,9 @@ export const CHAT_TOOLS: Anthropic.Tool[] = [
     name: "analyze_my_video",
     description:
       "Run a fresh AI video analysis (Gemini watches the actual reel) on one of the user's own videos and save it. Takes ~30s and costs an API call. Call this when the user wants a deep breakdown of a specific reel that hasn't been analyzed yet, or explicitly asks you to (re)analyze one.",
-    input_schema: {
-      type: "object",
-      properties: { videoId: { type: "string", description: "The reel id to analyze" } },
+    parameters: {
+      type: "OBJECT",
+      properties: { videoId: { type: "STRING", description: "The reel id to analyze" } },
       required: ["videoId"],
     },
   },
@@ -41,9 +41,9 @@ export const CHAT_TOOLS: Anthropic.Tool[] = [
     name: "make_video_viral",
     description:
       "Generate a 'Viral Rescue' teardown for one of the user's underperforming reels — a hook autopsy, 5 ready-to-film replacement hooks, retention fixes, and a rewritten script. Takes ~30s and costs an API call. Call this when the user wants to fix or relaunch a specific flopped video.",
-    input_schema: {
-      type: "object",
-      properties: { videoId: { type: "string", description: "The reel id to rescue" } },
+    parameters: {
+      type: "OBJECT",
+      properties: { videoId: { type: "STRING", description: "The reel id to rescue" } },
       required: ["videoId"],
     },
   },
@@ -51,7 +51,7 @@ export const CHAT_TOOLS: Anthropic.Tool[] = [
     name: "generate_account_insights",
     description:
       "Regenerate the account-level insights report from all current metrics and analyses. Call this when the user asks for a fresh overall read on their account, or when the existing insights look stale relative to new videos.",
-    input_schema: { type: "object", properties: {}, required: [] },
+    parameters: { type: "OBJECT", properties: {} },
   },
 ];
 

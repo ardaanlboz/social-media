@@ -1,4 +1,4 @@
-import Anthropic from "@anthropic-ai/sdk";
+import { generateText } from "./gemini";
 
 export async function generateNewConcepts(
   videoAnalysis: string,
@@ -6,11 +6,6 @@ export async function generateNewConcepts(
   masterChecklist = "",
   nexusFramework = ""
 ): Promise<string> {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) throw new Error("ANTHROPIC_API_KEY not set");
-
-  const client = new Anthropic({ apiKey });
-
   const frameworkSection = nexusFramework
     ? `
 # NEXUS FRAMEWORK (MANDATORY WRITING RULES)
@@ -31,13 +26,8 @@ ${masterChecklist}
 `
     : "";
 
-  const message = await client.messages.create({
-    model: "claude-sonnet-4-5-20250929",
-    max_tokens: 4096,
-    messages: [
-      {
-        role: "user",
-        content: `# ROLE
+  return generateText({
+    prompt: `# ROLE
 You're an expert in creating viral Reels on Instagram.
 
 # OBJECTIVE
@@ -54,10 +44,6 @@ ${newConceptsPrompt}
 ------
 ${frameworkSection}${checklistSection}
 # BEGIN YOUR WORK`,
-      },
-    ],
+    maxOutputTokens: 4096,
   });
-
-  const block = message.content[0];
-  return block.type === "text" ? block.text : "";
 }

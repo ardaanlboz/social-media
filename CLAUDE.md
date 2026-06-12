@@ -21,8 +21,7 @@ npm run dev
 
 **Required environment variables** (in `.env` at project root):
 - `APIFY_API_TOKEN` — Apify Instagram scraper
-- `GEMINI_API_KEY` — Google Gemini video analysis
-- `ANTHROPIC_API_KEY` — Claude concept generation
+- `GEMINI_API_KEY` — Google Gemini (video analysis + all text/JSON generation + chat)
 
 ---
 
@@ -32,8 +31,7 @@ npm run dev
 - **Tailwind CSS** + **shadcn/ui** components
 - **CSV files** for data storage (in `data/` directory)
 - **Apify** — Instagram scraping
-- **Google Gemini 3.5 Flash** — Video analysis (upload + multimodal)
-- **Claude Sonnet** — New concept generation
+- **Google Gemini 3.5 Flash** — Video analysis (upload + multimodal), concept generation, verification, topic classification, viral rescue, account insights, and the chat assistant (streaming + function calling). Single model across the whole app (`lib/gemini.ts`).
 
 ---
 
@@ -46,8 +44,8 @@ npm run dev
 3. **Scrape** — For each competitor creator, scrape recent Instagram Reels via Apify
 4. **Filter & Rank** — Filter by date, sort by views, take top-K most viral
 5. **Analyze** — Download video, upload to Gemini, analyze (extracts Concept, Hook, Retention, Reward, Script)
-6. **Generate** — Send analysis + brand context to Claude for adapted video concepts (master scripting checklist injected as mandatory rules)
-7. **Verify** — Independent Claude verifier grades every concept against the master checklist; failing concepts are revised with the verifier's feedback (max 2 rounds); the final scorecard is saved with the video
+6. **Generate** — Send analysis + brand context to Gemini for adapted video concepts (master scripting checklist injected as mandatory rules)
+7. **Verify** — Independent Gemini verifier grades every concept against the master checklist; failing concepts are revised with the verifier's feedback (max 2 rounds); the final scorecard is saved with the video
 8. **Save** — Append results to `data/videos.csv`, viewable in the Videos page with thumbnails and checklist scorecards
 9. **Run History** — Every run (params, duration, videos added, status) is appended to `data/runs.csv` and shown in a "Recent Runs" table on the Run page
 
@@ -58,17 +56,17 @@ All user data lives in `data/` as CSV/JSON/markdown files and is **gitignored** 
 ### My Creator (Own-Account Analytics)
 
 The `/creator` page analyzes the user's own Instagram account (single account, stored in `data/creator-profile.json` + `data/creator-videos.csv`):
-- **Refresh** (SSE) — re-scrapes profile stats and the latest reels (90 days / up to 100), merges by post URL (new rows added, metrics updated on known rows), then Claude batch-classifies topics from captions, reusing existing topic labels
+- **Refresh** (SSE) — re-scrapes profile stats and the latest reels (90 days / up to 100), merges by post URL (new rows added, metrics updated on known rows), then Gemini batch-classifies topics from captions, reusing existing topic labels
 - **Metrics views** (instant, no AI cost) — overview cards, best/worst rankings by views/likes/comments/engagement, per-topic breakdown with CSS bars, avg views by posting day
 - **Analyze with AI** (per video) — downloads the reel (re-scrapes a fresh CDN URL via Apify if expired), runs Gemini with a built-in creator-analysis prompt incl. performance diagnosis vs account average
-- **Make It Viral / Viral Rescue** (per video, hook-focused) — two-stage: Gemini watches the reel and reports ground truth, then Claude (`VIRAL_RESCUE_SYSTEM_PROMPT`, brutally-honest strategist) returns structured JSON — virality score, hook autopsy, **5 ready-to-film replacement hooks**, retention fixes, a rewritten script, caption/CTA, ranked priority changes. Rendered in `ViralRescueModal`; saved to the video's `viralRescue` column so "View Rescue" reopens instantly. The button gets a flame accent on below-average (flopped) videos.
-- **Generate Insights** (account level) — one Claude call over the full metrics table + analyses → markdown report stored on the profile
+- **Make It Viral / Viral Rescue** (per video, hook-focused) — two-stage: Gemini watches the reel and reports ground truth, then Gemini (`VIRAL_RESCUE_SYSTEM_PROMPT`, brutally-honest strategist) returns structured JSON — virality score, hook autopsy, **5 ready-to-film replacement hooks**, retention fixes, a rewritten script, caption/CTA, ranked priority changes. Rendered in `ViralRescueModal`; saved to the video's `viralRescue` column so "View Rescue" reopens instantly. The button gets a flame accent on below-average (flopped) videos.
+- **Generate Insights** (account level) — one Gemini call over the full metrics table + analyses → markdown report stored on the profile
 
 ### Chat Assistant (Tactical AI Chat)
 
 The `/chat` page ("Assistant" in the sidebar) is a no-BS tactical strategist connected to all of the user's data:
 - **Context** — every turn injects a cached digest (`lib/chat-context.ts`) of the creator profile + account insights, a table of all own reels, a table of all analyzed competitor reels, and the checklist + framework. Full per-video analyses are fetched on demand via tools.
-- **Model** — Claude **Opus 4.8** (`lib/chat.ts`), responses streamed token-by-token over SSE; manual tool-use agentic loop.
+- **Model** — Gemini **3.5 Flash** (`lib/chat.ts` via `streamGeminiTurn`), responses streamed token-by-token over SSE; manual function-calling agentic loop.
 - **Tools** (`lib/chat-tools.ts`) — read: `get_my_video`, `get_competitor_video`; act: `analyze_my_video`, `make_video_viral`, `generate_account_insights` (these reuse the shared `lib/creator-actions.ts` functions that also back the My Creator routes — no duplicated pipeline). Tool activity streams as live chips in the UI.
 - **Persistence** — conversations stored in `data/chats.json` (`lib/chat-store.ts`); left rail lists past chats, resume by clicking. Cross-turn history is stored as user/assistant text + a summary of actions taken.
 - **System prompt** — brutally honest, grounds every claim in the user's real numbers, leads with the answer, calls tools instead of describing them.
@@ -76,13 +74,13 @@ The `/chat` page ("Assistant" in the sidebar) is a no-BS tactical strategist con
 ### Two Customizable Prompts Per Config
 
 - **Analysis Instruction** — How Gemini should break down the video
-- **New Concepts Instruction** — How Claude should adapt the reference for the brand
+- **New Concepts Instruction** — How Gemini should adapt the reference for the brand
 
 ### Master Scripting Checklist
 
 A global checklist (`data/master-checklist.md`, editable on the Configs page) that oversees every generation:
 - Injected into the Gemini analysis prompt (reference video is evaluated against it)
-- Injected into the Claude concepts prompt as mandatory rules
+- Injected into the Gemini concepts prompt as mandatory rules
 - Enforced by `lib/verifier.ts`: independent grading + up to 2 automatic revision rounds
 - Verdict saved per video as JSON in the `checklistResult` column, rendered as a scorecard in the Videos page
 - Item line format: `- [item-id] Label: criterion`; an empty/missing file disables the feature entirely
@@ -91,7 +89,7 @@ A global checklist (`data/master-checklist.md`, editable on the Configs page) th
 
 A global content-creation framework (`data/nexus-framework.md`, editable on the Configs page) injected as guidance — not graded:
 - Appended to the Gemini analysis prompt as descriptive vocabulary/context
-- Injected into the Claude generation and revision prompts as mandatory writing rules (You-form, conviction, linear storytelling, power words, simplicity, visual-in-mind)
+- Injected into the Gemini generation and revision prompts as mandatory writing rules (You-form, conviction, linear storytelling, power words, simplicity, visual-in-mind)
 - The checklist verifier does NOT grade framework adherence; an empty/missing file disables the layer
 
 ---
@@ -116,19 +114,19 @@ A global content-creation framework (`data/nexus-framework.md`, editable on the 
 │   │   ├── lib/                           # Core logic
 │   │   │   ├── pipeline.ts               # Pipeline orchestration (+ run history)
 │   │   │   ├── apify.ts                  # Apify scraper client (+ single-post re-scrape)
-│   │   │   ├── gemini.ts                 # Gemini video analysis client
-│   │   │   ├── claude.ts                 # Claude concept generation client
+│   │   │   ├── gemini.ts                 # Gemini client: video analysis + generateText (text/JSON) + streamGeminiTurn (streaming function calling)
+│   │   │   ├── claude.ts                 # Concept generation (Gemini-backed; filename kept)
 │   │   │   ├── checklist.ts              # Master checklist file read/write
 │   │   │   ├── checklist-parse.ts        # Client-safe checklist item parser
 │   │   │   ├── framework.ts              # Nexus framework file read/write
-│   │   │   ├── verifier.ts               # Checklist verify-and-revise (Claude)
+│   │   │   ├── verifier.ts               # Checklist verify-and-revise (Gemini)
 │   │   │   ├── creator-merge.ts          # Pure merge of scraped reels into stored creator videos (tested)
 │   │   │   ├── creator-metrics.ts        # Client-safe own-account metrics (tested)
 │   │   │   ├── creator-profile.ts        # Own-account profile JSON store
-│   │   │   ├── creator-ai.ts             # Topics, creator analysis prompt, insights, viral-rescue prompts+parser (Claude)
+│   │   │   ├── creator-ai.ts             # Topics, creator analysis prompt, insights, viral-rescue prompts+parser (Gemini)
 │   │   │   ├── creator-media.ts          # Shared reel download w/ expired-URL re-scrape (analyze + rescue)
 │   │   │   ├── creator-actions.ts        # Shared analyze/rescue/insights fns (back routes + chat tools)
-│   │   │   ├── chat.ts                   # Chat assistant: Opus 4.8 streaming tool-use loop
+│   │   │   ├── chat.ts                   # Chat assistant: Gemini 3.5 Flash streaming function-calling loop
 │   │   │   ├── chat-context.ts           # Builds the all-data digest for the assistant (tested)
 │   │   │   ├── chat-tools.ts             # Assistant tool schemas + executors (read + actions)
 │   │   │   ├── chat-store.ts             # Conversation persistence in data/chats.json (tested)
@@ -159,7 +157,7 @@ A global content-creation framework (`data/nexus-framework.md`, editable on the 
 | Page | Path | Description |
 |------|------|-------------|
 | Dashboard | `/` | Summary stats, recent videos |
-| Assistant | `/chat` | Tactical no-BS AI chat (Opus 4.8) connected to all videos, analyses, competitors & insights; can analyze/rescue videos and generate insights via tools; persistent history |
+| Assistant | `/chat` | Tactical no-BS AI chat (Gemini 3.5 Flash) connected to all videos, analyses, competitors & insights; can analyze/rescue videos and generate insights via tools; persistent history |
 | Videos | `/videos` | Browse results with thumbnails, expandable analysis & concepts |
 | Run Pipeline | `/run` | Select config, set params, run with live progress streaming + recent run history |
 | My Creator | `/creator` | Own-account analytics: refresh latest reels, rankings, topic breakdown, posting patterns, on-demand AI analysis, viral rescue (Make It Viral), & insights |

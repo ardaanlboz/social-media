@@ -9,6 +9,9 @@ import { verifyConcepts, reviseConcepts } from "./verifier";
 import type { PipelineParams, PipelineProgress, Video, ActiveTask, ChecklistResult, ChecklistVerdict } from "./types";
 
 const VIDEO_CONCURRENCY = 3;
+// Cap concurrent scrapes so peak Apify Actor memory stays well under the 8 GB
+// free-tier limit (each run-sync scrape holds RUN_MEMORY_MB while it runs).
+const SCRAPE_CONCURRENCY = 5;
 
 interface ScrapedVideo {
   videoUrl: string;
@@ -119,19 +122,19 @@ ${nexusFramework}
     if (creators.length === 0) throw new Error(`No creators found for category "${config.creatorsCategory}"`);
 
     progress.creatorsTotal = creators.length;
-    log(`Found ${creators.length} creators — scraping all in parallel`);
+    log(`Found ${creators.length} creators — scraping up to ${SCRAPE_CONCURRENCY} at a time`);
     emit();
 
-    // Phase 1: Scrape all creators in parallel
+    // Phase 1: Scrape creators with bounded concurrency (keeps peak Apify memory low)
     progress.phase = "scraping";
     const cutoffDate = new Date(Date.now() - params.nDays * 24 * 60 * 60 * 1000);
     const allTopVideos: ScrapedVideo[] = [];
 
-    const scrapeResults = await Promise.allSettled(
-      creators.map(async (creator) => {
-        const taskId = `scrape-${creator.username}`;
-        addTask({ id: taskId, creator: creator.username, step: "Scraping reels" });
+    await runWithConcurrency(creators, SCRAPE_CONCURRENCY, async (creator) => {
+      const taskId = `scrape-${creator.username}`;
+      addTask({ id: taskId, creator: creator.username, step: "Scraping reels" });
 
+      try {
         const reels = await scrapeReels(creator.username, params.maxVideos, params.nDays);
         updateTask(taskId, `Found ${reels.length} reels`);
 
@@ -152,31 +155,21 @@ ${nexusFramework}
 
         videos.sort((a, b) => b.views - a.views);
         const topVideos = videos.slice(0, params.topK);
+        for (const v of topVideos) allTopVideos.push(v);
 
         updateTask(taskId, `Top ${topVideos.length} selected`);
         log(`@${creator.username}: ${reels.length} reels → top ${topVideos.length} selected`);
-
-        removeTask(taskId);
         progress.creatorsScraped++;
-        emit();
-
-        return { creator: creator.username, videos: topVideos };
-      })
-    );
-
-    for (const result of scrapeResults) {
-      if (result.status === "fulfilled") {
-        for (const v of result.value.videos) {
-          allTopVideos.push(v);
-        }
-        progress.creatorsCompleted++;
-      } else {
-        const msg = `Scraping error: ${result.reason instanceof Error ? result.reason.message : result.reason}`;
+      } catch (err) {
+        const msg = `Scraping error (@${creator.username}): ${err instanceof Error ? err.message : err}`;
         progress.errors.push(msg);
         log(msg);
+      } finally {
+        removeTask(taskId);
         progress.creatorsCompleted++;
+        emit();
       }
-    }
+    });
 
     progress.videosTotal = allTopVideos.length;
     log(`Scraping done. ${allTopVideos.length} videos to analyze (${VIDEO_CONCURRENCY} workers)`);
@@ -214,8 +207,8 @@ ${nexusFramework}
           analysisInstruction
         );
 
-        updateTask(taskId, "Claude generating concepts");
-        log(`@${video.username} (${label}): Claude generating concepts`);
+        updateTask(taskId, "Generating concepts");
+        log(`@${video.username} (${label}): generating concepts`);
 
         let newConcepts = await generateNewConcepts(analysis, config.newConceptsInstruction, masterChecklist, nexusFramework);
 

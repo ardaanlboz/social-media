@@ -1,14 +1,6 @@
-import Anthropic from "@anthropic-ai/sdk";
+import { generateText } from "./gemini";
 import { engagementRate } from "./creator-metrics";
 import type { CreatorProfile, CreatorVideo, ViralRescue } from "./types";
-
-const MODEL = "claude-sonnet-4-5-20250929";
-
-function getClient(): Anthropic {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) throw new Error("ANTHROPIC_API_KEY not set");
-  return new Anthropic({ apiKey });
-}
 
 export interface TopicAssignment {
   id: string;
@@ -38,16 +30,9 @@ export async function classifyTopics(
   existingTopics: string[]
 ): Promise<Map<string, string>> {
   if (videos.length === 0) return new Map();
-  const client = getClient();
 
-  const message = await client.messages.create({
-    model: MODEL,
-    // ~64 output tokens per assignment (UUID + topic + JSON syntax); 2k was truncating large batches
-    max_tokens: Math.min(8192, 256 + videos.length * 64),
-    messages: [
-      {
-        role: "user",
-        content: `# TASK
+  const text = await generateText({
+    prompt: `# TASK
 Classify each Instagram Reel below into a short content topic (2-4 words, Title Case) based on its caption.
 
 # RULES
@@ -60,12 +45,11 @@ ${JSON.stringify(videos, null, 2)}
 
 # OUTPUT
 Respond with ONLY a JSON array: [{"id": "<video id>", "topic": "<topic>"}]`,
-      },
-    ],
+    // ~64 output tokens per assignment (UUID + topic + JSON syntax); 2k was truncating large batches
+    maxOutputTokens: Math.min(8192, 256 + videos.length * 64),
+    json: true,
   });
 
-  const block = message.content[0];
-  const text = block.type === "text" ? block.text : "";
   return new Map(parseTopicAssignments(text).map((a) => [a.id, a.topic]));
 }
 
@@ -100,8 +84,6 @@ export async function generateAccountInsights(
   profile: CreatorProfile,
   videos: CreatorVideo[]
 ): Promise<string> {
-  const client = getClient();
-
   const rows = videos
     .map(
       (v) =>
@@ -117,13 +99,8 @@ export async function generateAccountInsights(
     )
     .join("\n\n");
 
-  const message = await client.messages.create({
-    model: MODEL,
-    max_tokens: 4096,
-    messages: [
-      {
-        role: "user",
-        content: `# ROLE
+  return generateText({
+    prompt: `# ROLE
 You are an expert Instagram growth strategist analyzing MY account (@${profile.username}, ${profile.followers.toLocaleString()} followers).
 
 # MY VIDEO DATA
@@ -144,12 +121,8 @@ Posting cadence, timing, format patterns visible in the data.
 5-7 concrete next actions, ordered by expected impact.
 
 Ground every claim in the data above. Be direct and specific.`,
-      },
-    ],
+    maxOutputTokens: 4096,
   });
-
-  const block = message.content[0];
-  return block.type === "text" ? block.text : "";
 }
 
 // ── Viral Rescue ("Make It Viral") ──────────────────────────────────────────
@@ -189,7 +162,7 @@ Any call to action and where it appears. Write "None" if absent.
 Framing, lighting, caption/subtitle style, and format (talking head, b-roll, screen recording, etc.).`;
 }
 
-// Stage 2: Claude turns the factual breakdown + metrics into a strategic rescue.
+// Stage 2: Gemini turns the factual breakdown + metrics into a strategic rescue.
 export const VIRAL_RESCUE_SYSTEM_PROMPT = `You are the most sought-after short-form video strategist alive. You have scripted hooks that generated billions of views on Instagram Reels and TikTok. Creators pay you thousands for a single teardown because you see exactly why a video lives or dies in its first three seconds.
 
 You are analyzing ONE video a creator posted that UNDERPERFORMED — it flopped relative to their account. Your job: tell them, with surgical precision and zero sugar-coating, exactly what to change to make this video go viral instead — with the overwhelming majority of your attention on the HOOK.
@@ -266,20 +239,15 @@ export async function generateViralRescue(
   accountAvgViews: number,
   caption: string
 ): Promise<ViralRescue | null> {
-  const client = getClient();
   const ratio = accountAvgViews > 0 ? (video.views / accountAvgViews).toFixed(2) : "n/a";
 
-  const message = await client.messages.create({
-    model: MODEL,
-    // The full rescue (5 hooks + a beat-by-beat rewritten script + priorities) runs
-    // ~4.5-5k tokens; 4096 truncated it mid-JSON. Give a generous ceiling so the JSON
-    // can never be cut off — billing tracks actual tokens used, not this cap.
-    max_tokens: 16000,
+  const text = await generateText({
     system: VIRAL_RESCUE_SYSTEM_PROMPT,
-    messages: [
-      {
-        role: "user",
-        content: `# THE VIDEO THAT UNDERPERFORMED
+    // The full rescue (5 hooks + a beat-by-beat rewritten script + priorities) runs
+    // ~4.5-5k tokens. Give a generous ceiling so the JSON can never be cut off mid-object.
+    maxOutputTokens: 8192,
+    json: true,
+    prompt: `# THE VIDEO THAT UNDERPERFORMED
 Performance:
 - Views: ${video.views.toLocaleString()} vs account average ${accountAvgViews.toLocaleString()} (${ratio}x the average)
 - Likes: ${video.likes.toLocaleString()}, Comments: ${video.comments.toLocaleString()}
@@ -291,11 +259,7 @@ ${geminiBreakdown}
 
 # YOUR TASK
 Produce the viral rescue for THIS video as JSON. Ground every observation in the breakdown above — quote the actual opening words and describe the actual first frame. Obsess over the hook.`,
-      },
-    ],
   });
 
-  const block = message.content[0];
-  const text = block.type === "text" ? block.text : "";
   return parseViralRescue(text);
 }

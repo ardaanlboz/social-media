@@ -1,10 +1,10 @@
-import Anthropic from "@anthropic-ai/sdk";
 import { buildDataDigest } from "./chat-context";
 import { CHAT_TOOLS, executeTool, toolRunningLabel } from "./chat-tools";
+import { streamGeminiTurn } from "./gemini";
+import type { GeminiContent, GeminiPart } from "./gemini";
 import type { ChatMessage, ChatToolCall } from "./types";
 
-const MODEL = "claude-opus-4-8";
-const MAX_TOKENS = 16000;
+const MAX_OUTPUT_TOKENS = 8192;
 const MAX_TOOL_ROUNDS = 8;
 
 const SYSTEM_PERSONA = `You are the user's personal short-form growth strategist, embedded in their Instagram Reels tooling. You can see their entire account, every analysis they've run, their competitors' analyzed videos, and their scripting checklist + framework — all provided under "THE USER'S DATA" below.
@@ -26,12 +26,6 @@ export interface ChatStreamCallbacks {
   onToolEnd: (name: string, label: string, ok: boolean) => void;
 }
 
-function getClient(): Anthropic {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) throw new Error("ANTHROPIC_API_KEY not set");
-  return new Anthropic({ apiKey });
-}
-
 // Run one assistant turn: stream text to the callbacks, execute any tools the
 // model calls (streaming tool activity too), and loop until the model stops
 // asking for tools. Returns the final assistant text + the tools it used.
@@ -40,64 +34,53 @@ export async function runChatTurn(
   userText: string,
   cb: ChatStreamCallbacks
 ): Promise<{ text: string; toolCalls: ChatToolCall[] }> {
-  const client = getClient();
+  const system = `${SYSTEM_PERSONA}\n\n# THE USER'S DATA\n${buildDataDigest()}`;
 
-  const system: Anthropic.TextBlockParam[] = [
-    {
-      type: "text",
-      text: `${SYSTEM_PERSONA}\n\n# THE USER'S DATA\n${buildDataDigest()}`,
-      cache_control: { type: "ephemeral" },
-    },
-  ];
-
-  const messages: Anthropic.MessageParam[] = history.map((m) => ({
-    role: m.role,
-    content: m.content,
+  const contents: GeminiContent[] = history.map((m) => ({
+    role: m.role === "assistant" ? "model" : "user",
+    parts: [{ text: m.content }],
   }));
-  messages.push({ role: "user", content: userText });
+  contents.push({ role: "user", parts: [{ text: userText }] });
 
   const toolCalls: ChatToolCall[] = [];
   let allText = "";
 
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
-    const stream = client.messages.stream({
-      model: MODEL,
-      max_tokens: MAX_TOKENS,
+    const { text, functionCalls } = await streamGeminiTurn({
+      contents,
       system,
       tools: CHAT_TOOLS,
-      messages,
+      maxOutputTokens: MAX_OUTPUT_TOKENS,
+      onText: cb.onText,
     });
-    stream.on("text", (delta) => cb.onText(delta));
 
-    const msg = await stream.finalMessage();
+    allText += text;
 
-    const turnText = msg.content
-      .filter((b): b is Anthropic.TextBlock => b.type === "text")
-      .map((b) => b.text)
-      .join("");
-    allText += turnText;
+    // Record the model turn (text + any function-call parts) so the next round
+    // sees its own previous tool requests.
+    const modelParts: GeminiPart[] = [
+      ...(text ? [{ text }] : []),
+      ...functionCalls.map((fc) => ({ functionCall: { name: fc.name, args: fc.args } })),
+    ];
+    contents.push({ role: "model", parts: modelParts });
 
-    messages.push({ role: "assistant", content: msg.content });
+    if (functionCalls.length === 0) break;
 
-    if (msg.stop_reason !== "tool_use") break;
-
-    const toolUses = msg.content.filter(
-      (b): b is Anthropic.ToolUseBlock => b.type === "tool_use"
-    );
-    const results: Anthropic.ToolResultBlockParam[] = [];
-    for (const tu of toolUses) {
-      cb.onToolStart(tu.name, toolRunningLabel(tu.name));
-      const outcome = await executeTool(tu.name, (tu.input as Record<string, unknown>) || {});
-      cb.onToolEnd(tu.name, outcome.label, outcome.ok);
-      toolCalls.push({ name: tu.name, label: outcome.label, ok: outcome.ok });
-      results.push({
-        type: "tool_result",
-        tool_use_id: tu.id,
-        content: outcome.content,
-        is_error: !outcome.ok,
+    // Execute every requested tool and feed the results back as one user turn.
+    const responseParts: GeminiPart[] = [];
+    for (const fc of functionCalls) {
+      cb.onToolStart(fc.name, toolRunningLabel(fc.name));
+      const outcome = await executeTool(fc.name, fc.args || {});
+      cb.onToolEnd(fc.name, outcome.label, outcome.ok);
+      toolCalls.push({ name: fc.name, label: outcome.label, ok: outcome.ok });
+      responseParts.push({
+        functionResponse: {
+          name: fc.name,
+          response: { result: outcome.content, ok: outcome.ok },
+        },
       });
     }
-    messages.push({ role: "user", content: results });
+    contents.push({ role: "user", parts: responseParts });
   }
 
   return { text: allText.trim(), toolCalls };

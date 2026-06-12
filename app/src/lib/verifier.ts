@@ -1,13 +1,5 @@
-import Anthropic from "@anthropic-ai/sdk";
+import { generateText } from "./gemini";
 import type { ChecklistVerdict, ConceptVerdict } from "./types";
-
-const MODEL = "claude-sonnet-4-5-20250929";
-
-function getClient(): Anthropic {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) throw new Error("ANTHROPIC_API_KEY not set");
-  return new Anthropic({ apiKey });
-}
 
 function extractJson(text: string): unknown {
   const start = text.indexOf("{");
@@ -44,7 +36,6 @@ export async function verifyConcepts(
   concepts: string,
   checklistMarkdown: string
 ): Promise<ChecklistVerdict> {
-  const client = getClient();
   const prompt = `# ROLE
 You are a strict quality verifier for short-form video scripts. You only grade — you never rewrite.
 
@@ -68,13 +59,7 @@ Respond with ONLY a JSON object, no markdown fences, in exactly this shape:
 
   let lastError: unknown;
   for (let attempt = 0; attempt < 2; attempt++) {
-    const message = await client.messages.create({
-      model: MODEL,
-      max_tokens: 4096,
-      messages: [{ role: "user", content: prompt }],
-    });
-    const block = message.content[0];
-    const text = block.type === "text" ? block.text : "";
+    const text = await generateText({ prompt, maxOutputTokens: 4096, json: true });
     try {
       return toVerdict(extractJson(text));
     } catch (err) {
@@ -92,7 +77,6 @@ export async function reviseConcepts(
   checklistMarkdown: string,
   nexusFramework = ""
 ): Promise<string> {
-  const client = getClient();
   const failures = verdict.concepts
     .map((c) => {
       const failed = c.items.filter((i) => !i.pass);
@@ -112,13 +96,8 @@ ${nexusFramework}
 `
     : "";
 
-  const message = await client.messages.create({
-    model: MODEL,
-    max_tokens: 4096,
-    messages: [
-      {
-        role: "user",
-        content: `# ROLE
+  return generateText({
+    prompt: `# ROLE
 You're an expert in creating viral Reels on Instagram.
 
 # OBJECTIVE
@@ -151,10 +130,6 @@ ${failures}
 
 # OUTPUT
 Output the full revised concepts document in the same format as the current concepts. No commentary about the revision.`,
-      },
-    ],
+    maxOutputTokens: 4096,
   });
-
-  const block = message.content[0];
-  return block.type === "text" ? block.text : "";
 }

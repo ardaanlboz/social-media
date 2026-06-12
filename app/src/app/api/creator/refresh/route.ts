@@ -48,7 +48,7 @@ export async function POST() {
             datePosted: r.timestamp?.split("T")[0] || "",
           }));
 
-        // Save reels before topic classification so a Claude failure never loses scraped data
+        // Save reels before topic classification so an AI failure never loses scraped data
         const today = new Date().toISOString().slice(0, 10);
         const { videos, added, updated } = mergeCreatorVideos(readCreatorVideos(), scraped, today);
         writeCreatorVideos(videos);
